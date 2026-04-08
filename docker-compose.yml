@@ -1,0 +1,45 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.6.6
+    container_name: ${USER}_vLLM_GPU_${GPU_LABEL}
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS:-0,1}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:${PORT}:8080"
+    command: >
+      --model ${MODEL}
+      --tensor-parallel-size 2
+      --dtype float16
+      --max-model-len ${MAX_MODEL_LEN:-32768}
+      --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
+      --port 8080
+      --enforce-eager
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  eval:
+    image: python:3.12-slim
+    container_name: ${USER}_eval
+    network_mode: host
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    volumes:
+      - ./src:/app/src
+      - ./requirements.txt:/app/requirements.txt
+      - ./logs:/app/src/logs
+      - pip-cache:/root/.cache/pip
+    working_dir: /app/src
+    command: >
+      bash -c "pip install -q -r /app/requirements.txt && python eval_aime25.py"
+
+volumes:
+  pip-cache:

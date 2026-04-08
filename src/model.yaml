@@ -1,0 +1,23 @@
+model: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+# model: deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
+port: 10001
+
+pre_prompt: |
+  Solve the following math problem. Put your answer inside \boxed{}.
+
+post_prompt: |
+  Remember to put your answer inside \boxed{}.
+
+thinking_budget: 5000
+max_output_tokens: 512
+context_window: 32000
+
+enable_thinking: true
+thinking_temp: 0.1
+nonthinking_temp: 0.0
+
+top_p: 0.90
+repetition_penalty: 1.15
+
+num_rounds: 10
+log_dir: logs/aime25
