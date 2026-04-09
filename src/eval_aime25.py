@@ -1,11 +1,31 @@
 import json
 import re
+import threading
 import time
 from pathlib import Path
 
 import requests
 import yaml
 from datasets import load_dataset
+
+try:
+    import pynvml
+    NVML_AVAILABLE = True
+except ImportError:
+    NVML_AVAILABLE = False
+
+
+def _vram_monitor(stop_event: threading.Event, peak_mb: list) -> None:
+    try:
+        pynvml.nvmlInit()
+        handles = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(pynvml.nvmlDeviceGetCount())]
+        while not stop_event.is_set():
+            used_mb = sum(pynvml.nvmlDeviceGetMemoryInfo(h).used for h in handles) / 1024 ** 2
+            if used_mb > peak_mb[0]:
+                peak_mb[0] = used_mb
+            stop_event.wait(0.5)
+    except Exception:
+        pass
 
 
 def load_config(path: str = "model.yaml") -> dict:
@@ -29,7 +49,7 @@ THINK_OPEN = "<think>"
 THINK_CLOSE = "</think>"
 
 
-def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str]:
+def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
     url = f"http://localhost:{cfg['port']}/v1/chat/completions"
     prompt = build_prompt(problem, cfg)
     enable_thinking = cfg.get("enable_thinking", False)
@@ -46,11 +66,18 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str]:
         "repetition_penalty": cfg.get("repetition_penalty", 1.0),
         "chat_template_kwargs": {"enable_thinking": enable_thinking, "thinking_budget": thinking_budget},
         "stream": True,
+        "stream_options": {"include_usage": True},
     }
+
+    peak_mb: list[float] = [0.0]
+    stop_event = threading.Event()
+    if NVML_AVAILABLE:
+        threading.Thread(target=_vram_monitor, args=(stop_event, peak_mb), daemon=True).start()
 
     thinking = ""
     answer = ""
     buf = ""
+    usage: dict = {}
     in_think = False
     showed_think_header = False
     showed_resp_header = False
@@ -63,7 +90,13 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str]:
             data = line.decode("utf-8")
             if not data.startswith("data: ") or data[6:] == "[DONE]":
                 continue
-            delta = json.loads(data[6:])["choices"][0]["delta"]
+            chunk = json.loads(data[6:])
+            if chunk.get("usage"):
+                usage = chunk["usage"]
+            choices = chunk.get("choices", [])
+            if not choices:
+                continue
+            delta = choices[0].get("delta", {})
             buf += delta.get("content") or ""
 
             while True:
@@ -125,7 +158,16 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str]:
     if showed_resp_header:
         print("\n------- END RESPONSE ----")
     print()
-    return thinking.strip(), answer.strip()
+
+    stop_event.set()
+
+    metrics = {
+        "prompt_tokens":      usage.get("prompt_tokens"),
+        "completion_tokens":  usage.get("completion_tokens"),
+        "total_tokens":       usage.get("total_tokens"),
+        "peak_vram_mb":       round(peak_mb[0], 1) if NVML_AVAILABLE else None,
+    }
+    return thinking.strip(), answer.strip(), metrics
 
 
 def main():
@@ -175,10 +217,13 @@ def main():
             print(f"[Round {rnd} | {idx:02d}/{len(problems)}] {row['problem'][:80]}...\n")
 
             t0 = time.time()
-            thinking, answer = query(row["problem"], cfg, temperature)
+            thinking, answer, metrics = query(row["problem"], cfg, temperature)
             elapsed = time.time() - t0
 
-            print(f"\n({elapsed:.1f}s)\n")
+            completion_tokens = metrics.get("completion_tokens") or 0
+            tokens_per_sec = round(completion_tokens / elapsed, 2) if elapsed > 0 and completion_tokens else None
+
+            print(f"\n({elapsed:.1f}s | {tokens_per_sec} tok/s | peak VRAM {metrics.get('peak_vram_mb')} MB)\n")
 
             boxed = re.search(r"\\boxed\{(\d+)\}", answer)
             extracted_answer = boxed.group(1) if boxed else None
@@ -192,6 +237,11 @@ def main():
                 "correct_answer":    str(row["answer"]),
                 "correct":           correct,
                 "elapsed_s":         round(elapsed, 2),
+                "prompt_tokens":     metrics.get("prompt_tokens"),
+                "completion_tokens": metrics.get("completion_tokens"),
+                "total_tokens":      metrics.get("total_tokens"),
+                "tokens_per_sec":    tokens_per_sec,
+                "peak_vram_mb":      metrics.get("peak_vram_mb"),
             }
 
             round_results[f"question_{idx}"] = result
@@ -218,11 +268,23 @@ def main():
     num_pass = sum(1 for q in per_question.values() if q["pass_at_1"])
     overall_pass_at_1 = num_pass / len(problems)
 
+    all_trials = [res for trials in all_results.values() for res in trials.values()]
+
+    def _avg(key):
+        vals = [r[key] for r in all_trials if r.get(key) is not None]
+        return round(sum(vals) / len(vals), 2) if vals else None
+
     summary = {
         "config": config_block,
         "overall_pass_at_1": overall_pass_at_1,
         "questions_passed": num_pass,
         "total_questions": len(problems),
+        "avg_elapsed_s": _avg("elapsed_s"),
+        "avg_prompt_tokens": _avg("prompt_tokens"),
+        "avg_completion_tokens": _avg("completion_tokens"),
+        "avg_total_tokens": _avg("total_tokens"),
+        "avg_tokens_per_sec": _avg("tokens_per_sec"),
+        "avg_peak_vram_mb": _avg("peak_vram_mb"),
         "per_question": per_question,
     }
 
