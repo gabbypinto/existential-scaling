@@ -1,0 +1,18 @@
+benchmark: scicode
+
+# Dataset: SciCode1/SciCode (65 test problems)
+# Research-level scientific coding across physics, math, materials, biology, chemistry.
+# Evaluation: generated code + required_dependencies + assert-based test cases.
+
+pre_prompt: |
+  Write a complete Python solution for the following scientific programming problem.
+  Your solution should define the required function(s).
+  Put your code inside a ```python code block.
+
+post_prompt: |
+  Remember to put your complete solution inside a ```python code block.
+
+num_rounds: 1
+# Whether to include background context in the prompt
+include_background: true
+timeout_per_test: 60

@@ -1,18 +1,23 @@
 services:
+
+  # ---------------------------------------------------------------------------
+  # vLLM serving slots — each runs on its own GPU pair and port.
+  # Configure via .env: MODEL_1/PORT_1/GPU_IDS_1/GPU_LABEL_1/TENSOR_PARALLEL_SIZE_1, etc.
+  # ---------------------------------------------------------------------------
+
   vllm:
-    # image: vllm/vllm-openai:v0.6.6
     image: vllm/vllm-openai:v0.8.5
-    container_name: ${USER}_vLLM_GPU_${GPU_LABEL}
+    container_name: ${USER}_vLLM_GPU_${GPU_LABEL_1}
     environment:
-      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS:-0,1}
+      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS_1:-0,1}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ports:
-      - "127.0.0.1:${PORT}:8080"
+      - "127.0.0.1:${PORT_1:-10001}:8080"
     command: >
-      --model ${MODEL}
-      --tensor-parallel-size 2
+      --model ${MODEL_1}
+      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE_1:-1}
       --dtype float16
       --max-model-len ${MAX_MODEL_LEN:-32768}
       --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
@@ -27,27 +32,105 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
+  vllm_2:
+    image: vllm/vllm-openai:v0.8.5
+    container_name: ${USER}_vLLM_GPU_${GPU_LABEL_2}
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS_2:-2,3}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:${PORT_2:-10002}:8080"
+    command: >
+      --model ${MODEL_2}
+      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE_2:-1}
+      --dtype float16
+      --max-model-len ${MAX_MODEL_LEN:-32768}
+      --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
+      --port 8080
+      --enforce-eager
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  vllm_3:
+    image: vllm/vllm-openai:v0.8.5
+    container_name: ${USER}_vLLM_GPU_${GPU_LABEL_3}
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS_3:-4,5}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:${PORT_3:-10003}:8080"
+    command: >
+      --model ${MODEL_3}
+      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE_3:-1}
+      --dtype float16
+      --max-model-len ${MAX_MODEL_LEN:-32768}
+      --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
+      --port 8080
+      --enforce-eager
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  vllm_4:
+    image: vllm/vllm-openai:v0.8.5
+    container_name: ${USER}_vLLM_GPU_${GPU_LABEL_4}
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS_4:-6,7}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:${PORT_4:-10004}:8080"
+    command: >
+      --model ${MODEL_4}
+      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE_4:-1}
+      --dtype float16
+      --max-model-len ${MAX_MODEL_LEN:-32768}
+      --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
+      --port 8080
+      --enforce-eager
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Eval runner — used by start_eval.sh via `docker compose run eval`.
+  # The command below is a placeholder; start_eval.sh overrides it at runtime.
+  # ---------------------------------------------------------------------------
+
   eval:
     image: python:3.12-slim
     container_name: ${USER}_eval
     network_mode: host
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
-      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS:-0,1}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [utility]
     volumes:
       - ./src:/app/src
       - ./requirements.txt:/app/requirements.txt
       - ./logs:/app/src/logs
       - pip-cache:/root/.cache/pip
     working_dir: /app/src
-    command: >
-      bash -c "pip install -q -r /app/requirements.txt && python eval_aime25.py"
+    command: 'echo "Use: bash scripts/start_eval.sh --benchmark <name>"'
 
 volumes:
   pip-cache:

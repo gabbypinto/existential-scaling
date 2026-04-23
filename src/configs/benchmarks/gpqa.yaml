@@ -1,0 +1,14 @@
+benchmark: gpqa
+
+# Dataset: GPQA-Diamond (198 questions)
+# Expert-level multiple-choice science questions (bio, physics, chemistry).
+# Question text already includes options A–D inline.
+
+pre_prompt: |
+  Answer the following multiple-choice question. Think carefully, then end your
+  response with "Answer: X" where X is A, B, C, or D.
+
+post_prompt: |
+  Provide your final answer as "Answer: X" on the last line.
+
+num_rounds: 5

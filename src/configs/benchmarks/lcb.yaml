@@ -1,0 +1,17 @@
+benchmark: lcb
+
+# Live Code Bench - Med Difficulty Subset
+
+pre_prompt: |
+  Solve the following problem by writing a complete Python program that reads from
+  stdin and writes to stdout.
+  Put your solution inside a ```python code block.
+
+post_prompt: |
+  Remember to put your final solution inside a ```python code block.
+
+num_rounds: 1
+release_version: release_v6
+# easy / medium / hard — omit for all difficulties
+difficulty: medium
+timeout_per_test: 60

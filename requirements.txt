@@ -1,4 +1,7 @@
 requests
 pyyaml
-datasets
+datasets<3.0
 pynvml
+mlx-lm
+numpy
+scipy

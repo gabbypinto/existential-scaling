@@ -1,0 +1,13 @@
+benchmark: piqa_global
+
+# Dataset: mrlbenchmarks/global-piqa-nonparallel, acm_arab subset (100 questions)
+# Mesopotamian Arabic commonsense physical reasoning — binary choice (0 or 1).
+
+pre_prompt: |
+  Read the following question and two possible solutions carefully.
+  Choose the correct solution and respond with only "0" or "1".
+
+post_prompt: |
+  Your answer (0 or 1):
+
+num_rounds: 5

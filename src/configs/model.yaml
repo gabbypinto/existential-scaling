@@ -1,0 +1,12 @@
+# model name and port come from .env (MODEL_N / PORT_N)
+
+context_window: 32768
+
+enable_thinking: true
+thinking_budget: 15000
+max_output_tokens: 4096
+
+thinking_temp: 0.6
+nonthinking_temp: 0.1
+top_p: 0.90
+repetition_penalty: 1.15
