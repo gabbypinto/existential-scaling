@@ -1,28 +1,29 @@
 services:
 
   # ---------------------------------------------------------------------------
-  # vLLM serving slots — each runs on its own GPU pair and port.
-  # Configure via .env: MODEL_1/PORT_1/GPU_IDS_1/GPU_LABEL_1/TENSOR_PARALLEL_SIZE_1, etc.
+  # llama.cpp serving slots — each runs on its own GPU and port.
+  # Models are pulled from HuggingFace and converted to GGUF on first start,
+  # then cached in ~/.cache/huggingface for subsequent runs.
+  # Configure via .env: MODEL_N/PORT_N/GPU_IDS_N/GPU_LABEL_N
   # ---------------------------------------------------------------------------
 
-  vllm:
-    image: vllm/vllm-openai:v0.8.5
-    container_name: ${USER}_vLLM_GPU_${GPU_LABEL_1}
+  llm_1:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_1}
     environment:
-      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS_1:-0,1}
+      - CUDA_VISIBLE_DEVICES=${GPU_IDS_1:-0}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ports:
-      - "127.0.0.1:${PORT_1:-10001}:8080"
+      - "127.0.0.1:${PORT_1:-20001}:8080"
     command: >
-      --model ${MODEL_1}
-      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE_1:-1}
-      --dtype float16
-      --max-model-len ${MAX_MODEL_LEN:-32768}
-      --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
-      --port 8080
-      --enforce-eager
+      --hf-repo ${MODEL_1}
+      --hf-file ${WEIGHTS_1}
+      -ngl 99
+      --ctx-size ${CTX_SIZE:-32768}
+      --host 0.0.0.0
+      --alias ${MODEL_1}
     ipc: host
     deploy:
       resources:
@@ -32,24 +33,23 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
-  vllm_2:
-    image: vllm/vllm-openai:v0.8.5
-    container_name: ${USER}_vLLM_GPU_${GPU_LABEL_2}
+  llm_2:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_2}
     environment:
-      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS_2:-2,3}
+      - CUDA_VISIBLE_DEVICES=${GPU_IDS_2:-1}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ports:
-      - "127.0.0.1:${PORT_2:-10002}:8080"
+      - "127.0.0.1:${PORT_2:-20002}:8080"
     command: >
-      --model ${MODEL_2}
-      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE_2:-1}
-      --dtype float16
-      --max-model-len ${MAX_MODEL_LEN:-32768}
-      --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
-      --port 8080
-      --enforce-eager
+      --hf-repo ${MODEL_2}
+      --hf-file ${WEIGHTS_2}
+      -ngl 99
+      --ctx-size ${CTX_SIZE:-32768}
+      --host 0.0.0.0
+      --alias ${MODEL_2}
     ipc: host
     deploy:
       resources:
@@ -59,24 +59,23 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
-  vllm_3:
-    image: vllm/vllm-openai:v0.8.5
-    container_name: ${USER}_vLLM_GPU_${GPU_LABEL_3}
+  llm_3:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_3}
     environment:
-      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS_3:-4,5}
+      - CUDA_VISIBLE_DEVICES=${GPU_IDS_3:-6}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ports:
-      - "127.0.0.1:${PORT_3:-10003}:8080"
+      - "127.0.0.1:${PORT_3:-20003}:8080"
     command: >
-      --model ${MODEL_3}
-      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE_3:-1}
-      --dtype float16
-      --max-model-len ${MAX_MODEL_LEN:-32768}
-      --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
-      --port 8080
-      --enforce-eager
+      --hf-repo ${MODEL_3}
+      --hf-file ${WEIGHTS_3}
+      -ngl 99
+      --ctx-size ${CTX_SIZE:-32768}
+      --host 0.0.0.0
+      --alias ${MODEL_3}
     ipc: host
     deploy:
       resources:
@@ -86,24 +85,23 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
-  vllm_4:
-    image: vllm/vllm-openai:v0.8.5
-    container_name: ${USER}_vLLM_GPU_${GPU_LABEL_4}
+  llm_4:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_4}
     environment:
-      - NVIDIA_VISIBLE_DEVICES=${GPU_IDS_4:-6,7}
+      - CUDA_VISIBLE_DEVICES=${GPU_IDS_4:-7}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     ports:
-      - "127.0.0.1:${PORT_4:-10004}:8080"
+      - "127.0.0.1:${PORT_4:-20004}:8080"
     command: >
-      --model ${MODEL_4}
-      --tensor-parallel-size ${TENSOR_PARALLEL_SIZE_4:-1}
-      --dtype float16
-      --max-model-len ${MAX_MODEL_LEN:-32768}
-      --gpu-memory-utilization ${GPU_MEM_UTIL:-0.90}
-      --port 8080
-      --enforce-eager
+      --hf-repo ${MODEL_4}
+      --hf-file ${WEIGHTS_4}
+      -ngl 99
+      --ctx-size ${CTX_SIZE:-32768}
+      --host 0.0.0.0
+      --alias ${MODEL_4}
     ipc: host
     deploy:
       resources:
@@ -115,7 +113,6 @@ services:
 
   # ---------------------------------------------------------------------------
   # Eval runner — used by start_eval.sh via `docker compose run eval`.
-  # The command below is a placeholder; start_eval.sh overrides it at runtime.
   # ---------------------------------------------------------------------------
 
   eval:
@@ -129,6 +126,7 @@ services:
       - ./requirements.txt:/app/requirements.txt
       - ./logs:/app/src/logs
       - pip-cache:/root/.cache/pip
+      - ~/.cache/huggingface:/root/.cache/huggingface
     working_dir: /app/src
     command: 'echo "Use: bash scripts/start_eval.sh --benchmark <name>"'
 

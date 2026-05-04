@@ -4,7 +4,7 @@ context_window: 32768
 
 enable_thinking: true
 thinking_budget: 15000
-max_output_tokens: 4096
+max_output_tokens: 25000
 
 thinking_temp: 0.6
 nonthinking_temp: 0.1

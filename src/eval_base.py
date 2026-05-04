@@ -59,7 +59,6 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
         "temperature": temperature,
         "top_p": cfg.get("top_p", 1.0),
         "repetition_penalty": cfg.get("repetition_penalty", 1.0),
-        "chat_template_kwargs": {"enable_thinking": enable_thinking, "thinking_budget": thinking_budget},
         "stream": True,
         "stream_options": {"include_usage": True},
     }
@@ -208,8 +207,8 @@ def run_eval(benchmark, cfg: dict) -> None:
         "context_window":    cfg.get("context_window"),
         "enable_thinking":   cfg.get("enable_thinking", False),
         "temperature":       temperature,
-        "thinking_budget":   cfg.get("thinking_budget", 0),
-        "max_output_tokens": cfg.get("max_output_tokens", 2048),
+        "thinking_budget":   cfg.get("thinking_budget"),
+        "max_output_tokens": cfg.get("max_output_tokens"),
         "top_p":             cfg.get("top_p"),
         "repetition_penalty": cfg.get("repetition_penalty"),
         "num_rounds":        num_rounds,

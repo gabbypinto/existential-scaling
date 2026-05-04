@@ -10,4 +10,4 @@ pre_prompt: |
 post_prompt: |
   Your answer (0 or 1):
 
-num_rounds: 5
+num_rounds: 1

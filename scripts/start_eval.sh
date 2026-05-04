@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Start a vLLM slot, wait for it to load, then run an eval.
+# Start an LLM service slot, wait for it to load, then run an eval.
 #
 # Usage:
 #   bash scripts/start_eval.sh --slot 1 --benchmark gpqa [--limit 2] [--follow]
 #
-# --slot       which vLLM slot to use: 1,2,3,4  (default: 1)
+# --slot       which LLM service slot to use: 1,2,3,4  (default: 1)
 #              reads MODEL_N / PORT_N / GPU_IDS_N from .env
 # --benchmark  yaml name under src/configs/benchmarks/  (required)
 # --model      model yaml under src/configs/            (default: model)
 # --limit      only run first N problems — smoke test
 # --follow     tail eval logs after launching
-# --timeout    seconds to wait for vLLM to be ready     (default: 600)
+# --timeout    seconds to wait for LLM service to be ready  (default: 600)
 
 set -euo pipefail
 
@@ -65,8 +65,8 @@ PORT=$(_env_val "PORT_${SLOT}")
 [[ -n "$MODEL" ]] || { echo "ERROR: MODEL_${SLOT} not set in .env"; exit 1; }
 [[ -n "$PORT"  ]] || { echo "ERROR: PORT_${SLOT} not set in .env"; exit 1; }
 
-# slot N → vllm service name (slot 1 = vllm, slot 2 = vllm_2, ...)
-VLLM_SERVICE=$([ "$SLOT" -eq 1 ] && echo "vllm" || echo "vllm_${SLOT}")
+# slot N → LLM service name
+LLM_SERVICE="llm_${SLOT}"
 HEALTH_URL="http://localhost:${PORT}/v1/models"
 
 RUN_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/${BENCH_CFG}.yaml"
@@ -76,20 +76,20 @@ CONTAINER_NAME="${USER:-eval}_eval_slot${SLOT}_${BENCH_CFG}"
 
 echo ""
 echo "============================================"
-echo "  Slot         : $SLOT  ($VLLM_SERVICE, port $PORT)"
+echo "  Slot         : $SLOT  ($LLM_SERVICE, port $PORT)"
 echo "  Model        : $MODEL"
 echo "  Benchmark    : $BENCH_CFG"
 [[ -n "$LIMIT" ]] && echo "  Limit        : $LIMIT problems"
 echo "============================================"
 echo ""
 
-# ---------- 1. start vLLM ----------
+# ---------- 1. start LLM service ----------
 cd "$PROJECT_ROOT"
-echo "[1/3] Starting $VLLM_SERVICE..."
-docker compose up -d "$VLLM_SERVICE"
+echo "[1/3] Starting $LLM_SERVICE..."
+docker compose up -d "$LLM_SERVICE"
 
-# ---------- 2. wait for vLLM to be healthy ----------
-echo "[2/3] Waiting for vLLM to be ready at $HEALTH_URL ..."
+# ---------- 2. wait for LLM service to be healthy ----------
+echo "[2/3] Waiting for LLM service to be ready at $HEALTH_URL ..."
 ELAPSED=0
 INTERVAL=10
 while true; do
@@ -99,8 +99,8 @@ while true; do
     break
   fi
   if [[ $ELAPSED -ge $TIMEOUT ]]; then
-    echo "ERROR: vLLM did not become ready within ${TIMEOUT}s."
-    echo "       Check logs: docker compose logs $VLLM_SERVICE"
+    echo "ERROR: LLM service did not become ready within ${TIMEOUT}s."
+    echo "       Check logs: docker compose logs $LLM_SERVICE"
     exit 1
   fi
   printf "      -> Not ready yet (HTTP %s), retrying in %ds... [%ds/%ds]\r" \

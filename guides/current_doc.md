@@ -28,6 +28,6 @@
 
     `bash scripts/start_eval.sh --slot 1 --benchmark gpqa`
 
-    `bash scripts/start_eval.sh --slot 2 --benchmark lcb`
+    `bash scripts/start_eval.sh --slot 2 --benchmark piqa_global`
 
 

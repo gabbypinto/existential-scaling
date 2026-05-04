@@ -11,5 +11,6 @@ rsync -avz \
   "$PROJECT_ROOT/scripts" \
   "$PROJECT_ROOT/.env" \
   "$PROJECT_ROOT/docker-compose.yml" \
+  "$PROJECT_ROOT/Dockerfile" \
   "$PROJECT_ROOT/requirements.txt" \
   "$CLUSTER:$REMOTE_DIR/"
