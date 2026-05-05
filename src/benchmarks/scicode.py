@@ -1,9 +1,10 @@
+import json
 import re
 import subprocess
 import tempfile
 from pathlib import Path
 
-from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 
 from benchmarks.base import Benchmark
 
@@ -73,7 +74,16 @@ class SciCodeBenchmark(Benchmark):
     def load_problems(self, cfg: dict) -> list:
         self._timeout = cfg.get("timeout_per_test", 30)
         self._include_background = cfg.get("include_background", True)
-        return list(load_dataset(_DATASET, split="test"))
+        # SciCode1/SciCode has inconsistent columns across JSONL rows (general_solution
+        # missing in some entries), causing datasets' arrow builder to raise CastError.
+        # Downloading the raw JSONL and parsing line-by-line avoids the schema cast.
+        path = hf_hub_download(
+            repo_id=_DATASET,
+            filename="problems_test.jsonl",
+            repo_type="dataset",
+        )
+        with open(path) as f:
+            return [json.loads(line) for line in f if line.strip()]
 
     def get_question_text(self, row: dict) -> str:
         return _format_question(row, self._include_background)
