@@ -1,10 +1,10 @@
-benchmark: lcb
 
-# Live Code Bench - Med Difficulty Subset
+benchmark: lcb
+# https://huggingface.co/datasets/livecodebench/code_generation_lite
 
 pre_prompt: |
-  Solve the following problem by writing a complete Python program that reads from
-  stdin and writes to stdout.
+  Solve the following programming problem by writing a complete Python
+  program that reads from stdin and writes to stdout.
   Put your solution inside a ```python code block.
 
 post_prompt: |

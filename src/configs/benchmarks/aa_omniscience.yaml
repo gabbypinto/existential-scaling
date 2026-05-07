@@ -1,0 +1,12 @@
+
+benchmark: aa_omniscience
+# https://huggingface.co/datasets/ArtificialAnalysis/AA-Omniscience-Public
+
+# 600 questions
+
+pre_prompt: |
+  Answer the following question accurately and concisely.
+
+post_prompt: ""
+
+num_rounds: 1

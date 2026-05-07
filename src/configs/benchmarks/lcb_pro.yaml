@@ -1,7 +1,9 @@
 
-benchmark: scicode
-# https://huggingface.co/datasets/SciCode1/SciCode
-# 65 test problems
+benchmark: lcb_pro
+# https://huggingface.co/datasets/QAQAQAQAQ/LiveCodeBench-Pro
+
+# NOTE: gated - must accept terms on HF before running
+# Requires HF_TOKEN in .env with access granted on the dataset page.
 
 pre_prompt: |
   Solve the following programming problem by writing a complete Python
@@ -12,6 +14,5 @@ post_prompt: |
   Remember to put your final solution inside a ```python code block.
 
 num_rounds: 1
-# Whether to include background context in the prompt
-include_background: true
+difficulty: medium
 timeout_per_test: 60

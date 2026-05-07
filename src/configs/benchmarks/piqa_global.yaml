@@ -1,7 +1,33 @@
-benchmark: piqa_global
 
-# Dataset: mrlbenchmarks/global-piqa-nonparallel, acm_arab subset (100 questions)
-# Mesopotamian Arabic commonsense physical reasoning — binary choice (0 or 1).
+benchmark: piqa_global
+# https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
+# Binary choice commonsense physical reasoning (0 or 1), ~100 questions per subset.
+
+# Available subsets (Arabic scripts):
+#   acm_arab  acq_arab  aeb_arab  afb_arab  apc_arab_jord  apc_arab_leba
+#   apc_arab_pale  apc_arab_syri  arb_arab  arq_arab  ars_arab  ary_arab
+#   arz_arab  bcc_arab  bsk_arab  ckb_arab  pes_arab  snd_arab  uig_arab
+#   urd_arab
+#
+# Available subsets (other scripts/languages):
+#   als_latn  amh_ethi  asm_beng  azj_latn  bam_latn  ben_beng  ben_latn
+#   bgc_deva  bho_deva  bos_latn  bra_deva  btx_latn  bul_cyrl  cat_latn
+#   ces_latn  ckm_latn  cls_deva  cmn_hans  cmn_hant  dan_latn  deu_latn
+#   dhd_deva  dje_latn  ekk_latn  ekp_latn  ell_grek  eng_latn  eus_latn
+#   fao_latn  fin_latn  fra_latn_cana  fra_latn_fran  glg_latn  guj_gujr
+#   hau_latn  haw_latn  heb_hebr  hin_deva  hin_latn  hrv_latn  hun_latn
+#   hye_armn  ibo_latn  idu_latn  ind_latn  isl_latn  iso_latn  ita_latn
+#   jav_latn  jpn_jpan  kan_knda  kan_latn  kat_geor  kaz_cyrl  kin_latn
+#   kir_cyrl  kor_hang  lin_latn  lit_latn  luo_latn  mal_mlym  mar_deva
+#   mkd_cyrl  mni_beng  mni_mtei  nag_latn  nld_latn  nno_latn  nob_latn
+#   npi_deva  ory_orya  pan_guru  pcm_latn  plt_latn  pol_latn  por_latn_braz
+#   por_latn_port  ron_latn  rus_cyrl  rwr_deva  sin_latn  sin_sinh  slk_latn
+#   slv_latn  slv_latn_cerk  slv_latn_prle  snd_deva  spa_latn_mexi
+#   spa_latn_peru  spa_latn_spai  srp_cyrl  srp_cyrl_torl  srp_latn
+#   srp_latn_torl  sun_latn  swe_latn  swh_latn  swv_deva  tam_latn  tam_taml
+#   tel_latn  tel_telu  tgl_latn  tha_thai  tur_latn  ukr_cyrl  urd_latn
+#   urh_latn  uzn_latn  vie_latn  yor_latn  yue_hant  zsm_latn  zul_latn
+subset: acm_arab
 
 pre_prompt: |
   Read the following question and two possible solutions carefully.

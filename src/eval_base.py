@@ -223,6 +223,7 @@ def run_eval(benchmark, cfg: dict) -> None:
     print(f"Running {num_rounds} rounds x {len(problems)} problems\n")
 
     all_results: dict[int, dict] = {idx: {} for idx in range(1, len(problems) + 1)}
+    total_elapsed_s = 0.0
 
     for rnd in range(1, num_rounds + 1):
         print(f"\n{'='*60}")
@@ -230,6 +231,7 @@ def run_eval(benchmark, cfg: dict) -> None:
         print(f"{'='*60}\n")
 
         round_results = {}
+        rnd_t0 = time.time()
 
         for idx, row in enumerate(problems, start=1):
             label = benchmark.get_label(row)
@@ -260,7 +262,15 @@ def run_eval(benchmark, cfg: dict) -> None:
             round_file = log_path / f"round-{rnd}_results.json"
             round_file.write_text(json.dumps({"config": config_block, "results": round_results}, indent=2, ensure_ascii=False))
 
-        print(f"Round {rnd} complete -> {round_file}")
+        rnd_elapsed_s = time.time() - rnd_t0
+        total_elapsed_s += rnd_elapsed_s
+        rnd_elapsed_h = round(rnd_elapsed_s / 3600, 4)
+        # patch round_elapsed_h into the round file
+        round_data = json.loads(round_file.read_text())
+        round_data["round_elapsed_h"] = rnd_elapsed_h
+        round_file.write_text(json.dumps(round_data, indent=2, ensure_ascii=False))
+
+        print(f"Round {rnd} complete ({rnd_elapsed_h:.3f}h) -> {round_file}")
 
     # pass@1: question passes if at least 1 round is correct
     per_question = {}
@@ -282,17 +292,18 @@ def run_eval(benchmark, cfg: dict) -> None:
     all_trials = [res for trials in all_results.values() for res in trials.values()]
 
     summary = {
-        "config":             config_block,
-        "overall_pass_at_1":  overall_pass_at_1,
-        "questions_passed":   num_pass,
-        "total_questions":    len(problems),
-        "avg_elapsed_s":      _avg("elapsed_s", all_trials),
-        "avg_prompt_tokens":  _avg("prompt_tokens", all_trials),
+        "config":                config_block,
+        "overall_pass_at_1":     overall_pass_at_1,
+        "questions_passed":      num_pass,
+        "total_questions":       len(problems),
+        "total_elapsed_h":       round(total_elapsed_s / 3600, 4),
+        "avg_elapsed_s":         _avg("elapsed_s", all_trials),
+        "avg_prompt_tokens":     _avg("prompt_tokens", all_trials),
         "avg_completion_tokens": _avg("completion_tokens", all_trials),
-        "avg_total_tokens":   _avg("total_tokens", all_trials),
-        "avg_tokens_per_sec": _avg("tokens_per_sec", all_trials),
-        "avg_peak_vram_mb":   _avg("peak_vram_mb", all_trials),
-        "per_question":       per_question,
+        "avg_total_tokens":      _avg("total_tokens", all_trials),
+        "avg_tokens_per_sec":    _avg("tokens_per_sec", all_trials),
+        "avg_peak_vram_mb":      _avg("peak_vram_mb", all_trials),
+        "per_question":          per_question,
     }
 
     summary_file = log_path / "summary.json"
@@ -300,4 +311,5 @@ def run_eval(benchmark, cfg: dict) -> None:
 
     print(f"\nDone!")
     print(f"Pass@1: {num_pass}/{len(problems)} = {overall_pass_at_1:.1%}")
+    print(f"Total time: {total_elapsed_s/3600:.3f}h")
     print(f"Summary saved -> {summary_file}")

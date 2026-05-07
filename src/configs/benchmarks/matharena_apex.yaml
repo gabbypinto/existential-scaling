@@ -1,8 +1,7 @@
 
-benchmark: aime25
-# https://huggingface.co/datasets/math-ai/aime25
-
-# Dataset: AIME 2025 (30 questions)
+benchmark: matharena_apex
+# https://huggingface.co/datasets/MathArena/apex_2025
+# 12 difficult problems
 
 pre_prompt: |
   Solve the following math problem. Put your answer inside \boxed{}.

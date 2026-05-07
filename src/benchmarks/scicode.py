@@ -8,11 +8,10 @@ from huggingface_hub import hf_hub_download
 
 from benchmarks.base import Benchmark
 
-_DATASET = "SciCode1/SciCode"
 
+_DATASET = "SciCode1/SciCode"
 _CODE_RE_PYTHON = re.compile(r"```python\s*(.*?)```", re.DOTALL)
 _CODE_RE_GENERIC = re.compile(r"```\s*(.*?)```", re.DOTALL)
-
 
 def _extract_code(response: str) -> str | None:
     m = _CODE_RE_PYTHON.search(response)

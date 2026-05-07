@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Run all 5 benchmarks sequentially on a given slot.
+# Run all benchmarks sequentially on a given slot.
 # Each benchmark waits for the previous to finish before starting.
 #
 # Usage:
 #   bash scripts/run_all_benchmarks.sh --slot 3
+#   bash scripts/run_all_benchmarks.sh --slot 4 --skip aime24,mmlu
 #   bash scripts/run_all_benchmarks.sh --slot 4 --model model --limit 2
 #
 # --slot      which LLM service slot: 1,2,3,4  (default: 1)
 # --model     model yaml under src/configs/   (default: model)
+# --skip      comma-separated list of benchmarks to skip
 # --limit     only run first N problems per benchmark (for testing)
 # --timeout   seconds to wait for LLM service to be ready (default: 900)
 
@@ -21,6 +23,7 @@ SLOT=1
 MODEL_CFG="model"
 LIMIT=""
 TIMEOUT=900
+SKIP=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,9 +31,20 @@ while [[ $# -gt 0 ]]; do
     --model)   MODEL_CFG="$2"; shift 2 ;;
     --limit)   LIMIT="$2";     shift 2 ;;
     --timeout) TIMEOUT="$2";   shift 2 ;;
+    --skip)    SKIP="$2";      shift 2 ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
   esac
 done
+
+_should_skip() {
+  local bench="$1"
+  [[ -z "$SKIP" ]] && return 1
+  IFS=',' read -ra skip_list <<< "$SKIP"
+  for s in "${skip_list[@]}"; do
+    [[ "$s" == "$bench" ]] && return 0
+  done
+  return 1
+}
 
 [[ -f "$ENV_FILE" ]] || { echo "ERROR: .env not found"; exit 1; }
 _env_val() { grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '[:space:]'; }
@@ -49,7 +63,7 @@ HEALTH_URL="http://localhost:${PORT}/v1/models"
 MODEL_SHORT=$(echo "$MODEL" | cut -d/ -f2 | tr '[:upper:]' '[:lower:]')
 EVAL_CONTAINER="${USER:-eval}_eval_${MODEL_SHORT}"
 
-BENCHMARKS=(aime25 gpqa lcb piqa_global scicode)
+BENCHMARKS=(aime24 aime25 gpqa lcb lcb_pro piqa_global scicode aa_omniscience matharena_apex global_mmlu_lite mmlu)
 
 echo ""
 echo "============================================"
@@ -57,6 +71,7 @@ echo "  Slot      : $SLOT  ($LLM_SERVICE, port $PORT)"
 echo "  Model     : $MODEL"
 echo "  Benchmarks: ${BENCHMARKS[*]}"
 [[ -n "$LIMIT" ]] && echo "  Limit     : $LIMIT problems each"
+[[ -n "$SKIP"  ]] && echo "  Skip      : $SKIP"
 echo "============================================"
 echo ""
 
@@ -99,6 +114,11 @@ for i in "${!BENCHMARKS[@]}"; do
   BENCH="${BENCHMARKS[$i]}"
   NUM=$((i + 1))
   BENCH_YAML="$PROJECT_ROOT/src/configs/benchmarks/${BENCH}.yaml"
+
+  if _should_skip "$BENCH"; then
+    echo "  -> Skipping $BENCH"
+    continue
+  fi
 
   [[ -f "$BENCH_YAML" ]] || { echo "WARNING: $BENCH_YAML not found, skipping"; FAILED+=("$BENCH"); continue; }
 

@@ -4,14 +4,11 @@ from datasets import load_dataset
 
 from benchmarks.base import Benchmark
 
-_DATASET = "mrlbenchmarks/global-piqa-nonparallel"
-_SUBSET = "acm_arab"
 
+_DATASET = "mrlbenchmarks/global-piqa-nonparallel"
 _DIGIT_RE = re.compile(r"\b([01])\b")
 
-
 def _extract_choice(answer: str) -> int | None:
-    """Return 0 or 1 from the last line of the response."""
     lines = [l.strip() for l in answer.splitlines() if l.strip()]
     for line in reversed(lines):
         m = _DIGIT_RE.search(line)
@@ -28,10 +25,9 @@ def _format_question(row: dict) -> str:
         "Which solution is correct? Answer with 0 or 1."
     )
 
-
 class GlobalPIQABenchmark(Benchmark):
     def load_problems(self, cfg: dict) -> list:
-        subset = cfg.get("subset", _SUBSET)
+        subset = cfg.get("subset", "acm_arab")
         return list(load_dataset(_DATASET, subset, split="test"))
 
     def get_question_text(self, row: dict) -> str:

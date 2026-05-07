@@ -1,8 +1,8 @@
 
-benchmark: aime25
-# https://huggingface.co/datasets/math-ai/aime25
+benchmark: aime24
+# https://huggingface.co/datasets/HuggingFaceH4/aime_2024
 
-# Dataset: AIME 2025 (30 questions)
+# 30 problems, AIME I + II combined)
 
 pre_prompt: |
   Solve the following math problem. Put your answer inside \boxed{}.

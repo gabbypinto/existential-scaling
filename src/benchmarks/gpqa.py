@@ -6,12 +6,10 @@ from datasets import load_dataset
 
 from benchmarks.base import Benchmark
 
-_DATASET = "Idavidrein/gpqa"
-_SUBSET = "gpqa_main"
 
+_DATASET = "Idavidrein/gpqa"
 _LETTERS = ["A", "B", "C", "D"]
 _LETTER_RE = re.compile(r"\b([A-D])\b")
-
 
 def _shuffle_options(row: dict) -> tuple[list[tuple[str, str]], str]:
     """Deterministically shuffle the 4 options and return labeled pairs + correct letter."""
@@ -39,7 +37,8 @@ def _extract_letter(answer: str) -> str | None:
 
 class GPQABenchmark(Benchmark):
     def load_problems(self, cfg: dict) -> list:
-        rows = [dict(r) for r in load_dataset(_DATASET, _SUBSET, split="train")]
+        subset = cfg.get("subset", "gpqa_diamond")
+        rows = [dict(r) for r in load_dataset(_DATASET, subset, split="train")]
         for row in rows:
             _, row["_correct_letter"] = _shuffle_options(row)
         return rows

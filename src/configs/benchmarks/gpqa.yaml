@@ -1,8 +1,13 @@
-benchmark: gpqa
 
-# Dataset: GPQA-Diamond (198 questions)
-# Expert-level multiple-choice science questions (bio, physics, chemistry).
-# Question text already includes options A–D inline.
+benchmark: gpqa
+# https://huggingface.co/datasets/Idavidrein/gpqa
+
+# subset options: 
+  # gpqa_diamond (198 questions)
+  # gpqa_main (448)
+  # gpqa_extended (546)
+
+subset: gpqa_diamond
 
 pre_prompt: |
   Answer the following multiple-choice question. Think carefully, then end your
