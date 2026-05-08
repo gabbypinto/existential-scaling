@@ -62,6 +62,22 @@ def _format_question(row: dict, include_background: bool = True) -> str:
         parts.append(f"Background:\n{row['problem_background_main']}")
     if row.get("problem_io"):
         parts.append(f"Input/Output specification:\n{row['problem_io']}")
+
+    sub_steps = row.get("sub_steps", [])
+    if sub_steps:
+        steps_text = ["You must implement the following functions (use these exact signatures):"]
+        for step in sub_steps:
+            header = step.get("function_header", "").strip()
+            desc = step.get("step_description_prompt", "").strip()
+            background = step.get("step_background", "").strip()
+            if header:
+                steps_text.append(f"\n{header}")
+            if desc:
+                steps_text.append(f"  # {desc}")
+            if background and include_background:
+                steps_text.append(f"  # Background: {background}")
+        parts.append("\n".join(steps_text))
+
     return "\n\n".join(parts)
 
 

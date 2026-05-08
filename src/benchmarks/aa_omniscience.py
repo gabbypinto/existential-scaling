@@ -1,6 +1,6 @@
 import re
 
-from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 
 from benchmarks.base import Benchmark
 
@@ -19,12 +19,18 @@ def _check_answer(response: str, correct: str) -> bool:
 
 class AAOmniscienceBenchmark(Benchmark):
     def load_problems(self, cfg: dict) -> list:
-        # Only split is "train" (600 public questions)
-        ds = list(load_dataset(_DATASET, split="train"))
+        import csv
+        path = hf_hub_download(
+            repo_id=_DATASET,
+            filename="AA-Omniscience_dataset_public.csv",
+            repo_type="dataset",
+        )
+        with open(path, newline="", encoding="utf-8") as f:
+            problems = list(csv.DictReader(f))
         domain = cfg.get("domain")
         if domain:
-            ds = [r for r in ds if r.get("domain", "").lower() == domain.lower()]
-        return ds
+            problems = [r for r in problems if str(r.get("domain", "")).lower() == domain.lower()]
+        return problems
 
     def get_question_text(self, row: dict) -> str:
         return row["question"]

@@ -5,3 +5,5 @@ pynvml
 mlx-lm
 numpy
 scipy
+pandas
+pyarrow

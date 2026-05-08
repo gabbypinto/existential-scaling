@@ -1,9 +1,22 @@
-
 benchmark: lcb_pro
 # https://huggingface.co/datasets/QAQAQAQAQ/LiveCodeBench-Pro
-
-# NOTE: gated - must accept terms on HF before running
+# NOTE: gated — must accept terms on HF before running.
 # Requires HF_TOKEN in .env with access granted on the dataset page.
+#
+# WARNING: The main dataset has NO test cases — test cases are in the separate
+# gated repo QAQAQAQAQ/LiveCodeBench-Pro-Testcase. Without access to that repo,
+# pass@1 will always be 0 (code is generated but cannot be verified).
+# Request access at: https://huggingface.co/datasets/QAQAQAQAQ/LiveCodeBench-Pro-Testcase
+
+# Available splits (use a list to combine multiple):
+#   quater_2024_10_12   quater_2025_1_3   quater_2025_4_6   quater_2025_7_9
+#   biannual_2024_7_12  biannual_2025_1_6
+# biannual splits cover two quarters each; quarterly splits are subsets of biannual.
+
+splits: biannual_2025_1_6
+
+# difficulty filter (optional — omit to include all difficulties):
+difficulty: medium
 
 pre_prompt: |
   Solve the following programming problem by writing a complete Python
@@ -14,5 +27,4 @@ post_prompt: |
   Remember to put your final solution inside a ```python code block.
 
 num_rounds: 1
-difficulty: medium
 timeout_per_test: 60

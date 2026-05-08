@@ -47,7 +47,7 @@ _should_skip() {
 }
 
 [[ -f "$ENV_FILE" ]] || { echo "ERROR: .env not found"; exit 1; }
-_env_val() { grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '[:space:]'; }
+_env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]' || true; }
 
 MODEL=$(_env_val "MODEL_${SLOT}")
 PORT=$(_env_val "PORT_${SLOT}")
@@ -65,13 +65,17 @@ EVAL_CONTAINER="${USER:-eval}_eval_${MODEL_SHORT}"
 
 BENCHMARKS=(aime24 aime25 gpqa lcb lcb_pro piqa_global scicode aa_omniscience matharena_apex global_mmlu_lite mmlu)
 
+ACTIVE=()
+for b in "${BENCHMARKS[@]}"; do
+  _should_skip "$b" || ACTIVE+=("$b")
+done
+
 echo ""
 echo "============================================"
 echo "  Slot      : $SLOT  ($LLM_SERVICE, port $PORT)"
 echo "  Model     : $MODEL"
-echo "  Benchmarks: ${BENCHMARKS[*]}"
+echo "  Benchmarks: ${ACTIVE[*]}"
 [[ -n "$LIMIT" ]] && echo "  Limit     : $LIMIT problems each"
-[[ -n "$SKIP"  ]] && echo "  Skip      : $SKIP"
 echo "============================================"
 echo ""
 

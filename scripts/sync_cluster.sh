@@ -6,7 +6,7 @@ CLUSTER="mlat_cluster_07"
 REMOTE_DIR="~/existential-scaling"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-rsync -avz \
+rsync -avz --exclude='__pycache__' --exclude='*.pyc' \
   "$PROJECT_ROOT/src" \
   "$PROJECT_ROOT/scripts" \
   "$PROJECT_ROOT/.env" \
