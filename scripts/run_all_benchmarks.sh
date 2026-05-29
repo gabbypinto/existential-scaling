@@ -12,6 +12,7 @@
 # --skip      comma-separated list of benchmarks to skip
 # --limit     only run first N problems per benchmark (for testing)
 # --timeout   seconds to wait for LLM service to be ready (default: 900)
+# --env-file  path to env file (default: .env in project root)
 
 set -euo pipefail
 
@@ -24,14 +25,16 @@ MODEL_CFG="model"
 LIMIT=""
 TIMEOUT=900
 SKIP=""
+ENV_FILE="$PROJECT_ROOT/.env"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --slot)    SLOT="$2";      shift 2 ;;
-    --model)   MODEL_CFG="$2"; shift 2 ;;
-    --limit)   LIMIT="$2";     shift 2 ;;
-    --timeout) TIMEOUT="$2";   shift 2 ;;
-    --skip)    SKIP="$2";      shift 2 ;;
+    --slot)      SLOT="$2";      shift 2 ;;
+    --model)     MODEL_CFG="$2"; shift 2 ;;
+    --limit)     LIMIT="$2";     shift 2 ;;
+    --timeout)   TIMEOUT="$2";   shift 2 ;;
+    --skip)      SKIP="$2";      shift 2 ;;
+    --env-file)  ENV_FILE="$2";  shift 2 ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
   esac
 done
@@ -83,7 +86,7 @@ cd "$PROJECT_ROOT"
 
 # 1. Start LLM service
 echo "[1/2] Starting $LLM_SERVICE..."
-docker compose up -d "$LLM_SERVICE"
+docker compose --env-file "$ENV_FILE" up -d "$LLM_SERVICE"
 echo ""
 
 # 2. Wait for LLM service to be healthy
@@ -137,7 +140,7 @@ for i in "${!BENCHMARKS[@]}"; do
 
   # Run synchronously (no --detach) so script waits for completion
   docker rm -f "$EVAL_CONTAINER" 2>/dev/null || true
-  if docker compose run \
+  if docker compose --env-file "$ENV_FILE" run \
       --rm \
       --name "$EVAL_CONTAINER" \
       --no-deps \

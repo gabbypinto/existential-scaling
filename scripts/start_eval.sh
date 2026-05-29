@@ -11,6 +11,7 @@
 # --limit      only run first N problems — smoke test
 # --follow     tail eval logs after launching
 # --timeout    seconds to wait for LLM service to be ready  (default: 600)
+# --env-file   path to env file (default: .env in project root)
 
 set -euo pipefail
 
@@ -25,6 +26,7 @@ BENCH_CFG=""
 LIMIT=""
 FOLLOW=false
 TIMEOUT=600
+ENV_FILE="$PROJECT_ROOT/.env"
 
 # ---------- parse args ----------
 while [[ $# -gt 0 ]]; do
@@ -35,6 +37,7 @@ while [[ $# -gt 0 ]]; do
     --limit)      LIMIT="$2";      shift 2 ;;
     --follow)     FOLLOW=true;     shift   ;;
     --timeout)    TIMEOUT="$2";    shift 2 ;;
+    --env-file)   ENV_FILE="$2";   shift 2 ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
   esac
 done
@@ -55,9 +58,9 @@ BENCH_YAML="$PROJECT_ROOT/src/configs/benchmarks/${BENCH_CFG}.yaml"
 [[ -f "$BENCH_YAML" ]] || { echo "ERROR: benchmark config not found: $BENCH_YAML"; exit 1; }
 
 # ---------- read slot vars from .env ----------
-[[ -f "$ENV_FILE" ]] || { echo "ERROR: .env not found"; exit 1; }
+[[ -f "$ENV_FILE" ]] || { echo "ERROR: env file not found: $ENV_FILE"; exit 1; }
 
-_env_val() { grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '[:space:]'; }
+_env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]' || true; }
 
 MODEL=$(_env_val "MODEL_${SLOT}")
 PORT=$(_env_val "PORT_${SLOT}")
@@ -86,7 +89,7 @@ echo ""
 # ---------- 1. start LLM service ----------
 cd "$PROJECT_ROOT"
 echo "[1/3] Starting $LLM_SERVICE..."
-docker compose up -d "$LLM_SERVICE"
+docker compose --env-file "$ENV_FILE" up -d "$LLM_SERVICE"
 
 # ---------- 2. wait for LLM service to be healthy ----------
 echo "[2/3] Waiting for LLM service to be ready at $HEALTH_URL ..."
@@ -112,7 +115,7 @@ done
 # ---------- 3. launch eval ----------
 echo "[3/3] Launching eval container: $CONTAINER_NAME"
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
-docker compose run \
+docker compose --env-file "$ENV_FILE" run \
   --detach \
   --name "$CONTAINER_NAME" \
   --no-deps \
