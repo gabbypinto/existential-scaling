@@ -38,9 +38,11 @@ def _format_question(row: dict) -> str:
 
 
 def _extract_letter(response: str) -> str | None:
+    # "Answer: X"
     m = re.search(r"\bAnswer:\s*([ABCD])\b", response, re.IGNORECASE)
     if m:
         return m.group(1).upper()
+    # last line starts with a letter (A, B, etc)
     lines = [l.strip() for l in response.splitlines() if l.strip()]
     if lines:
         m = re.fullmatch(r"([ABCD])[.):\s]?.*", lines[-1], re.IGNORECASE)
@@ -55,7 +57,7 @@ class MMLUBenchmark(Benchmark):
         sample_pct = cfg.get("sample_pct")
 
         if subject == "all" and sample_pct is not None:
-            # Load each subject individually, take first sample_pct%, combine
+            # 10% of each subject
             fraction = sample_pct / 100.0
             problems = []
             for subj in _ALL_SUBJECTS:

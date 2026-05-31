@@ -211,3 +211,4 @@ src/logs
 .DS_Store
 logs
 .env.dgx_spark
+models

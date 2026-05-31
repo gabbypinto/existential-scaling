@@ -1,0 +1,31 @@
+{
+  "slot": 3,
+  "skip": "lcb_pro,mmlu",
+  "env_file": ".env",
+  "models": [
+    {
+      "_comment": "Already-quantized GGUF on HuggingFace — downloaded directly by llama.cpp",
+      "hf_repo": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+      "weights": "DeepSeek-R1-0528-Qwen3-8B-Q8_0.gguf",
+      "enable_thinking": true,
+      "thinking_budget": 12000,
+      "max_output_tokens": 16000,
+      "thinking_temp": 0.6,
+      "nonthinking_temp": 0.0,
+      "top_p": 0.95,
+      "repetition_penalty": 1.0
+    },
+    {
+      "_comment": "Raw safetensors — auto-converted to GGUF before running (quant defaults to q8_0)",
+      "hf_repo": "Qwen/Qwen3.5-4B",
+      "quant": "q8_0",
+      "enable_thinking": true,
+      "thinking_budget": 8000,
+      "max_output_tokens": 12000,
+      "thinking_temp": 0.6,
+      "nonthinking_temp": 0.0,
+      "top_p": 0.95,
+      "repetition_penalty": 1.15
+    }
+  ]
+}

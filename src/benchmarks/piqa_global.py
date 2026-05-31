@@ -6,12 +6,18 @@ from benchmarks.base import Benchmark
 
 
 _DATASET = "mrlbenchmarks/global-piqa-nonparallel"
-_DIGIT_RE = re.compile(r"\b([01])\b")
+_ANSWER_RE = re.compile(r"\bAnswer:\s*([01])\b", re.IGNORECASE)
+_DIGIT_RE  = re.compile(r"\b([01])\b")
 
 def _extract_choice(answer: str) -> int | None:
+    # "Answer: 0" / "Answer: 1" anywhere in the response
+    m = _ANSWER_RE.search(answer)
+    if m:
+        return int(m.group(1))
+    # bare digit on the very last non-empty line only (like A, B etc)
     lines = [l.strip() for l in answer.splitlines() if l.strip()]
-    for line in reversed(lines):
-        m = _DIGIT_RE.search(line)
+    if lines:
+        m = _DIGIT_RE.search(lines[-1])
         if m:
             return int(m.group(1))
     return None

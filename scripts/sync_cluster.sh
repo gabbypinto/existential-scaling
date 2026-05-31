@@ -31,9 +31,14 @@ rsync -avz --exclude='__pycache__' --exclude='*.pyc' \
   "$PROJECT_ROOT/src" \
   "$PROJECT_ROOT/scripts" \
   "$PROJECT_ROOT/docker-compose.yml" \
-  "$PROJECT_ROOT/Dockerfile" \
   "$PROJECT_ROOT/requirements.txt" \
   "$CLUSTER:$REMOTE_DIR/"
+
+# Sync models/ preserving subfolder structure.
+# --ignore-existing skips GGUFs already on the cluster (avoids re-uploading multi-GB files).
+rsync -avz --ignore-existing --progress \
+  "$PROJECT_ROOT/models/qwen3" \
+  "$CLUSTER:$REMOTE_DIR/models/qwen3"
 
 # Sync env file as .env on the remote
 rsync -avz "$ENV_SRC" "$CLUSTER:$REMOTE_DIR/.env"

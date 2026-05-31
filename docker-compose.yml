@@ -5,6 +5,9 @@ services:
   # Models are pulled from HuggingFace and converted to GGUF on first start,
   # then cached in ~/.cache/huggingface for subsequent runs.
   # Configure via .env: MODEL_N/PORT_N/GPU_IDS_N/GPU_LABEL_N
+  #
+  # For locally-converted GGUFs (run_model_list.sh sets this automatically):
+  #   LOCAL_MODEL_N=/app/models/file.gguf
   # ---------------------------------------------------------------------------
 
   llm_1:
@@ -13,17 +16,17 @@ services:
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_1:-0}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - _LOCAL_MODEL=${LOCAL_MODEL_1:-}
+      - _REPO=${MODEL_1:-}
+      - _FILE=${WEIGHTS_1:-}
+      - _CTX=${CTX_SIZE:-32768}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./models:/app/models
     ports:
       - "127.0.0.1:${PORT_1:-20001}:8080"
-    command: >
-      --hf-repo ${MODEL_1}
-      --hf-file ${WEIGHTS_1}
-      -ngl 99
-      --ctx-size ${CTX_SIZE:-32768}
-      --host 0.0.0.0
-      --alias ${MODEL_1}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
     ipc: host
     deploy:
       resources:
@@ -39,17 +42,17 @@ services:
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_2:-1}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - _LOCAL_MODEL=${LOCAL_MODEL_2:-}
+      - _REPO=${MODEL_2:-}
+      - _FILE=${WEIGHTS_2:-}
+      - _CTX=${CTX_SIZE:-32768}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./models:/app/models
     ports:
       - "127.0.0.1:${PORT_2:-20002}:8080"
-    command: >
-      --hf-repo ${MODEL_2}
-      --hf-file ${WEIGHTS_2}
-      -ngl 99
-      --ctx-size ${CTX_SIZE:-32768}
-      --host 0.0.0.0
-      --alias ${MODEL_2}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
     ipc: host
     deploy:
       resources:
@@ -65,17 +68,17 @@ services:
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_3:-6}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - _LOCAL_MODEL=${LOCAL_MODEL_3:-}
+      - _REPO=${MODEL_3:-}
+      - _FILE=${WEIGHTS_3:-}
+      - _CTX=${CTX_SIZE:-32768}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./models:/app/models
     ports:
       - "127.0.0.1:${PORT_3:-20003}:8080"
-    command: >
-      --hf-repo ${MODEL_3}
-      --hf-file ${WEIGHTS_3}
-      -ngl 99
-      --ctx-size ${CTX_SIZE:-32768}
-      --host 0.0.0.0
-      --alias ${MODEL_3}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
     ipc: host
     deploy:
       resources:
@@ -91,17 +94,69 @@ services:
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_4:-7}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - _LOCAL_MODEL=${LOCAL_MODEL_4:-}
+      - _REPO=${MODEL_4:-}
+      - _FILE=${WEIGHTS_4:-}
+      - _CTX=${CTX_SIZE:-32768}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./models:/app/models
     ports:
       - "127.0.0.1:${PORT_4:-20004}:8080"
-    command: >
-      --hf-repo ${MODEL_4}
-      --hf-file ${WEIGHTS_4}
-      -ngl 99
-      --ctx-size ${CTX_SIZE:-32768}
-      --host 0.0.0.0
-      --alias ${MODEL_4}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  llm_5:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_5}
+    environment:
+      - CUDA_VISIBLE_DEVICES=${GPU_IDS_5:-5}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - _LOCAL_MODEL=${LOCAL_MODEL_5:-}
+      - _REPO=${MODEL_5:-}
+      - _FILE=${WEIGHTS_5:-}
+      - _CTX=${CTX_SIZE:-32768}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./models:/app/models
+    ports:
+      - "127.0.0.1:${PORT_5:-20005}:8080"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  llm_6:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_6}
+    environment:
+      - CUDA_VISIBLE_DEVICES=${GPU_IDS_6:-6}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - _LOCAL_MODEL=${LOCAL_MODEL_6:-}
+      - _REPO=${MODEL_6:-}
+      - _FILE=${WEIGHTS_6:-}
+      - _CTX=${CTX_SIZE:-32768}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./models:/app/models
+    ports:
+      - "127.0.0.1:${PORT_6:-20006}:8080"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
     ipc: host
     deploy:
       resources:

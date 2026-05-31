@@ -14,7 +14,14 @@ def _extract_answer(response: str) -> str | None:
     if m:
         return m.group(1).strip()
     lines = [l.strip() for l in response.splitlines() if l.strip()]
-    return lines[-1] if lines else None
+    if not lines:
+        return None
+    # Try to extract a numeric/mathematical token from the last line
+    # rather than returning the whole sentence as the answer
+    m = re.search(r"[-+]?\d[\d/.,]*(?:\^\{[^}]+\}|\*\*\d+)?", lines[-1])
+    if m:
+        return m.group(0).strip()
+    return lines[-1]
 
 
 class MathArenaApexBenchmark(Benchmark):

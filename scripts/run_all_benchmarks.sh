@@ -7,18 +7,21 @@
 #   bash scripts/run_all_benchmarks.sh --slot 4 --skip aime24,mmlu
 #   bash scripts/run_all_benchmarks.sh --slot 4 --model model --limit 2
 #
-# --slot      which LLM service slot: 1,2,3,4  (default: 1)
-# --model     model yaml under src/configs/   (default: model)
+# --slot      which LLM service slot: 1-6       (default: 1)
+# --model     model yaml under src/configs/    (default: model)
 # --skip      comma-separated list of benchmarks to skip
 # --limit     only run first N problems per benchmark (for testing)
 # --timeout   seconds to wait for LLM service to be ready (default: 900)
 # --env-file  path to env file (default: .env in project root)
+#
+# Model loading is controlled entirely by .env:
+#   LOCAL_MODEL_N=/app/models/<family>/file.gguf  → serves local GGUF, no HF download
+#   MODEL_N=<repo> + WEIGHTS_N=<file>             → pulls GGUF from HuggingFace
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ENV_FILE="$PROJECT_ROOT/.env"
 
 SLOT=1
 MODEL_CFG="model"
@@ -49,7 +52,7 @@ _should_skip() {
   return 1
 }
 
-[[ -f "$ENV_FILE" ]] || { echo "ERROR: .env not found"; exit 1; }
+[[ -f "$ENV_FILE" ]] || { echo "ERROR: .env not found: $ENV_FILE"; exit 1; }
 _env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]' || true; }
 
 MODEL=$(_env_val "MODEL_${SLOT}")

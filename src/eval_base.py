@@ -296,6 +296,7 @@ def run_eval(benchmark, cfg: dict) -> None:
         "overall_pass_at_1":     overall_pass_at_1,
         "questions_passed":      num_pass,
         "total_questions":       len(problems),
+        "total_elapsed_s":       round(total_elapsed_s, 1),
         "total_elapsed_h":       round(total_elapsed_s / 3600, 4),
         "avg_elapsed_s":         _avg("elapsed_s", all_trials),
         "avg_prompt_tokens":     _avg("prompt_tokens", all_trials),

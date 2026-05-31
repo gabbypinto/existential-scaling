@@ -19,7 +19,6 @@ def _format_question(row: dict) -> str:
 
 
 def _extract_letter(response: str) -> str | None:
-    # Last "Answer: X" or standalone A/B/C/D on its own line
     m = re.search(r"\bAnswer:\s*([ABCD])\b", response, re.IGNORECASE)
     if m:
         return m.group(1).upper()
