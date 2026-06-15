@@ -19,12 +19,12 @@ splits: biannual_2025_1_6
 difficulty: medium
 
 pre_prompt: |
-  Solve the following programming problem by writing a complete Python
-  program that reads from stdin and writes to stdout.
-  Put your solution inside a ```python code block.
+  Solve the following problem by writing a complete C++ program that reads from 
+  stdin and writes to stdout.
+  Put your solution inside a ```cpp code block.
 
 post_prompt: |
-  Remember to put your final solution inside a ```python code block.
+  Remember to put your final C++ solution inside a ```cpp code block.
 
 num_rounds: 1
 timeout_per_test: 60

@@ -212,3 +212,4 @@ src/logs
 logs
 .env.dgx_spark
 models
+lcb_pro*

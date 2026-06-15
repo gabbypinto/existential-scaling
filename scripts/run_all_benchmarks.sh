@@ -141,23 +141,44 @@ for i in "${!BENCHMARKS[@]}"; do
   echo "============================================"
   echo ""
 
-  # Run synchronously (no --detach) so script waits for completion
-  docker rm -f "$EVAL_CONTAINER" 2>/dev/null || true
-  if docker compose --env-file "$ENV_FILE" run \
-      --rm \
-      --name "$EVAL_CONTAINER" \
-      --no-deps \
-      -e MODEL="$MODEL" \
-      -e PORT="$PORT" \
-      eval \
-      bash -c "pip install -q -r /app/requirements.txt && $RUN_CMD"; then
-    PASSED+=("$BENCH")
-    echo ""
-    echo "  -> $BENCH complete"
+  # lcb_pro uses LightCPVerifierJudge which requires host Docker access (no Docker-in-Docker)
+  if [[ "$BENCH" == "lcb_pro" ]]; then
+    if (
+      export PYTHONPATH="$PROJECT_ROOT/src:${PYTHONPATH:-}"
+      export MODEL="$MODEL" PORT="$PORT"
+      cd "$PROJECT_ROOT"
+      "$PROJECT_ROOT/.venv/bin/python" src/run_eval.py \
+        --model "src/configs/${MODEL_CFG}.yaml" \
+        --benchmark "src/configs/benchmarks/lcb_pro.yaml" \
+        ${LIMIT:+--limit "$LIMIT"}
+    ); then
+      PASSED+=("$BENCH")
+      echo ""
+      echo "  -> $BENCH complete"
+    else
+      FAILED+=("$BENCH")
+      echo ""
+      echo "  -> $BENCH FAILED (exit code $?)"
+    fi
   else
-    FAILED+=("$BENCH")
-    echo ""
-    echo "  -> $BENCH FAILED (exit code $?)"
+    # Run synchronously (no --detach) so script waits for completion
+    docker rm -f "$EVAL_CONTAINER" 2>/dev/null || true
+    if docker compose --env-file "$ENV_FILE" run \
+        --rm \
+        --name "$EVAL_CONTAINER" \
+        --no-deps \
+        -e MODEL="$MODEL" \
+        -e PORT="$PORT" \
+        eval \
+        bash -c "pip install -q -r /app/requirements.txt && $RUN_CMD"; then
+      PASSED+=("$BENCH")
+      echo ""
+      echo "  -> $BENCH complete"
+    else
+      FAILED+=("$BENCH")
+      echo ""
+      echo "  -> $BENCH FAILED (exit code $?)"
+    fi
   fi
 done
 

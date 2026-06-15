@@ -52,9 +52,14 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
 
     prompt = build_prompt(problem, cfg)
 
+    messages = []
+    if cfg.get("system_prompt"):
+        messages.append({"role": "system", "content": cfg["system_prompt"]})
+    messages.append({"role": "user", "content": prompt})
+
     payload = {
         "model": cfg["model"],
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
         "max_tokens": thinking_budget + max_output_tokens,
         "temperature": temperature,
         "top_p": cfg.get("top_p", 1.0),
@@ -154,11 +159,15 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
 
     stop_event.set()
 
+    timings = usage.get("timings", {})
     metrics = {
-        "prompt_tokens":     usage.get("prompt_tokens"),
-        "completion_tokens": usage.get("completion_tokens"),
-        "total_tokens":      usage.get("total_tokens"),
-        "peak_vram_mb":      round(peak_mb[0], 1) if NVML_AVAILABLE else None,
+        "prompt_tokens":        usage.get("prompt_tokens"),
+        "completion_tokens":    usage.get("completion_tokens"),
+        "total_tokens":         usage.get("total_tokens"),
+        "peak_vram_mb":         round(peak_mb[0], 1) if NVML_AVAILABLE else None,
+        "prompt_ms":            timings.get("prompt_ms"),
+        "generation_ms":        timings.get("predicted_ms"),
+        "tokens_per_sec_llama": timings.get("predicted_per_second"),
     }
     return thinking.strip(), answer.strip(), metrics
 
@@ -166,6 +175,21 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
 def _avg(key: str, trials: list[dict]):
     vals = [r[key] for r in trials if r.get(key) is not None]
     return round(sum(vals) / len(vals), 2) if vals else None
+
+
+def count_tokens(text: str, port: int) -> int | None:
+    if not text:
+        return 0
+    try:
+        r = requests.post(
+            f"http://localhost:{port}/tokenize",
+            json={"content": text},
+            timeout=10,
+        )
+        r.raise_for_status()
+        return len(r.json()["tokens"])
+    except Exception:
+        return None
 
 
 def run_eval(benchmark, cfg: dict) -> None:
@@ -215,6 +239,8 @@ def run_eval(benchmark, cfg: dict) -> None:
         "log_dir":           log_dir,
         "pre_prompt":        cfg.get("pre_prompt", "").strip(),
         "post_prompt":       cfg.get("post_prompt", "").strip(),
+        "prompt_key":        cfg.get("prompt_key", ""),
+        "system_prompt":     cfg.get("system_prompt", ""),
     }
 
     print(f"Benchmark: {benchmark_name}")
@@ -246,12 +272,16 @@ def run_eval(benchmark, cfg: dict) -> None:
             metrics["tokens_per_sec"] = tokens_per_sec
 
             result = benchmark.build_result(row, thinking, answer, metrics, elapsed)
-            result["elapsed_s"] = round(elapsed, 2)
-            result["tokens_per_sec"] = tokens_per_sec
-            result["prompt_tokens"] = metrics.get("prompt_tokens")
-            result["completion_tokens"] = metrics.get("completion_tokens")
-            result["total_tokens"] = metrics.get("total_tokens")
-            result["peak_vram_mb"] = metrics.get("peak_vram_mb")
+            result["elapsed_s"]            = round(elapsed, 2)
+            result["tokens_per_sec"]       = tokens_per_sec
+            result["prompt_tokens"]        = metrics.get("prompt_tokens")
+            result["completion_tokens"]    = metrics.get("completion_tokens")
+            result["total_tokens"]         = metrics.get("total_tokens")
+            result["peak_vram_mb"]         = metrics.get("peak_vram_mb")
+            result["thinking_tokens"]      = count_tokens(thinking, cfg["port"])
+            result["prompt_ms"]            = metrics.get("prompt_ms")
+            result["generation_ms"]        = metrics.get("generation_ms")
+            result["tokens_per_sec_llama"] = metrics.get("tokens_per_sec_llama")
 
             correct = result.get("correct", result.get("passed_all_tests", False))
             print(f"\n({elapsed:.1f}s | {tokens_per_sec} tok/s | {'PASS' if correct else 'FAIL'} | peak VRAM {metrics.get('peak_vram_mb')} MB)\n")
@@ -292,19 +322,23 @@ def run_eval(benchmark, cfg: dict) -> None:
     all_trials = [res for trials in all_results.values() for res in trials.values()]
 
     summary = {
-        "config":                config_block,
-        "overall_pass_at_1":     overall_pass_at_1,
-        "questions_passed":      num_pass,
-        "total_questions":       len(problems),
-        "total_elapsed_s":       round(total_elapsed_s, 1),
-        "total_elapsed_h":       round(total_elapsed_s / 3600, 4),
-        "avg_elapsed_s":         _avg("elapsed_s", all_trials),
-        "avg_prompt_tokens":     _avg("prompt_tokens", all_trials),
-        "avg_completion_tokens": _avg("completion_tokens", all_trials),
-        "avg_total_tokens":      _avg("total_tokens", all_trials),
-        "avg_tokens_per_sec":    _avg("tokens_per_sec", all_trials),
-        "avg_peak_vram_mb":      _avg("peak_vram_mb", all_trials),
-        "per_question":          per_question,
+        "config":                    config_block,
+        "overall_pass_at_1":         overall_pass_at_1,
+        "questions_passed":          num_pass,
+        "total_questions":           len(problems),
+        "total_elapsed_s":           round(total_elapsed_s, 1),
+        "total_elapsed_h":           round(total_elapsed_s / 3600, 4),
+        "avg_elapsed_s":             _avg("elapsed_s", all_trials),
+        "avg_prompt_tokens":         _avg("prompt_tokens", all_trials),
+        "avg_completion_tokens":     _avg("completion_tokens", all_trials),
+        "avg_total_tokens":          _avg("total_tokens", all_trials),
+        "avg_tokens_per_sec":        _avg("tokens_per_sec", all_trials),
+        "avg_tokens_per_sec_llama":  _avg("tokens_per_sec_llama", all_trials),
+        "avg_thinking_tokens":       _avg("thinking_tokens", all_trials),
+        "avg_prompt_ms":             _avg("prompt_ms", all_trials),
+        "avg_generation_ms":         _avg("generation_ms", all_trials),
+        "avg_peak_vram_mb":          _avg("peak_vram_mb", all_trials),
+        "per_question":              per_question,
     }
 
     summary_file = log_path / "summary.json"

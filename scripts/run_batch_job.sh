@@ -22,7 +22,14 @@ SLOTS_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skip)     SKIP="$2";           shift 2 ;;
+    --skip)
+      shift
+      while [[ $# -gt 0 && "$1" != --* ]]; do
+        TOKEN="${1%,}"  # strip trailing comma if user typed "lcb_pro, matharena_apex"
+        SKIP="${SKIP:+${SKIP},}${TOKEN}"
+        shift
+      done
+      ;;
     --slots)    SLOTS_OVERRIDE="$2"; shift 2 ;;
     --env-file) ENV_FILE="$2";       shift 2 ;;
     *) echo "Unknown arg: $1"; exit 1 ;;

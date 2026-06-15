@@ -10,3 +10,6 @@ thinking_temp: 0.6
 nonthinking_temp: 0.1
 top_p: 0.90
 repetition_penalty: 1.15
+
+
+# temp 0.0 for math 

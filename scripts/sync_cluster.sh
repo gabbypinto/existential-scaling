@@ -36,9 +36,9 @@ rsync -avz --exclude='__pycache__' --exclude='*.pyc' \
 
 # Sync models/ preserving subfolder structure.
 # --ignore-existing skips GGUFs already on the cluster (avoids re-uploading multi-GB files).
-rsync -avz --ignore-existing --progress \
-  "$PROJECT_ROOT/models/qwen3/" \
-  "$CLUSTER:$REMOTE_DIR/models/qwen3/"
+# rsync -avz --ignore-existing --progress \
+#   "$PROJECT_ROOT/models/qwen2.5-coder/" \
+#   "$CLUSTER:$REMOTE_DIR/models/qwen2.5-coder/"
 
 # Sync env file as .env on the remote
 rsync -avz "$ENV_SRC" "$CLUSTER:$REMOTE_DIR/.env"
