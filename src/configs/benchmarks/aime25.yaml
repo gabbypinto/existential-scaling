@@ -1,0 +1,13 @@
+
+benchmark: aime25
+# https://huggingface.co/datasets/math-ai/aime25
+
+# Dataset: AIME 2025 (30 questions)
+
+pre_prompt: |
+  Solve the following math problem. Put your answer inside \boxed{}.
+
+post_prompt: |
+  Remember to put your answer inside \boxed{}.
+
+num_rounds: 1

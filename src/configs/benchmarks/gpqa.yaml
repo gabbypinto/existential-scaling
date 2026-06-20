@@ -1,0 +1,19 @@
+
+benchmark: gpqa
+# https://huggingface.co/datasets/Idavidrein/gpqa
+
+# subset options: 
+  # gpqa_diamond (198 questions)
+  # gpqa_main (448)
+  # gpqa_extended (546)
+
+subset: gpqa_diamond
+
+pre_prompt: |
+  Answer the following multiple-choice question. Think carefully, then end your
+  response with "Answer: X" where X is A, B, C, or D.
+
+post_prompt: |
+  Provide your final answer as "Answer: X" on the last line.
+
+num_rounds: 1

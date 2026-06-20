@@ -1,0 +1,17 @@
+
+benchmark: global_mmlu_lite
+# https://huggingface.co/datasets/CohereLabs/Global-MMLU-Lite
+
+# 400 questions per language (200 culturally sensitive + 200 culturally agnostic)
+
+# language options: ar bn cy de en es fr hi id it ja ko my pt sq sw yo zh
+language: en
+
+pre_prompt: |
+  Answer the following multiple-choice question. Think carefully, then end your
+  response with "Answer: X" where X is A, B, C, or D.
+
+post_prompt: |
+  Provide your final answer as "Answer: X" on the last line.
+
+num_rounds: 1

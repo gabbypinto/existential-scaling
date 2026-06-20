@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# Start an LLM service slot, wait for it to load, then run an eval.
+#
+# Usage:
+#   bash scripts/start_eval.sh --slot 1 --benchmark gpqa [--limit 2] [--follow]
+#
+# --slot       which LLM service slot to use: 1,2,3,4  (default: 1)
+#              reads MODEL_N / PORT_N / GPU_IDS_N from .env
+# --benchmark  yaml name under src/configs/benchmarks/  (required)
+# --model      model yaml under src/configs/            (default: model)
+# --limit      only run first N problems — smoke test
+# --follow     tail eval logs after launching
+# --timeout    seconds to wait for LLM service to be ready  (default: 600)
+# --env-file   path to env file (default: .env in project root)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="$PROJECT_ROOT/.env"
+
+# ---------- defaults ----------
+SLOT=1
+MODEL_CFG="model"
+BENCH_CFG=""
+LIMIT=""
+FOLLOW=false
+TIMEOUT=600
+ENV_FILE="$PROJECT_ROOT/.env"
+
+# ---------- parse args ----------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --slot)       SLOT="$2";       shift 2 ;;
+    --benchmark)  BENCH_CFG="$2";  shift 2 ;;
+    --model)      MODEL_CFG="$2";  shift 2 ;;
+    --limit)      LIMIT="$2";      shift 2 ;;
+    --follow)     FOLLOW=true;     shift   ;;
+    --timeout)    TIMEOUT="$2";    shift 2 ;;
+    --env-file)   ENV_FILE="$2";   shift 2 ;;
+    *) echo "Unknown arg: $1"; exit 1 ;;
+  esac
+done
+
+if [[ -z "$BENCH_CFG" ]]; then
+  echo "Usage: $0 --slot <1-4> --benchmark <name> [--model model] [--limit N] [--follow]"
+  echo ""
+  echo "Available benchmarks:"
+  ls "$PROJECT_ROOT/src/configs/benchmarks/"*.yaml 2>/dev/null \
+    | xargs -n1 basename | sed 's/\.yaml$//' | sed 's/^/  /'
+  exit 1
+fi
+
+# ---------- validate configs ----------
+MODEL_YAML="$PROJECT_ROOT/src/configs/${MODEL_CFG}.yaml"
+BENCH_YAML="$PROJECT_ROOT/src/configs/benchmarks/${BENCH_CFG}.yaml"
+[[ -f "$MODEL_YAML" ]] || { echo "ERROR: model config not found: $MODEL_YAML"; exit 1; }
+[[ -f "$BENCH_YAML" ]] || { echo "ERROR: benchmark config not found: $BENCH_YAML"; exit 1; }
+
+# ---------- read slot vars from .env ----------
+[[ -f "$ENV_FILE" ]] || { echo "ERROR: env file not found: $ENV_FILE"; exit 1; }
+
+_env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]' || true; }
+
+MODEL=$(_env_val "MODEL_${SLOT}")
+PORT=$(_env_val "PORT_${SLOT}")
+
+[[ -n "$MODEL" ]] || { echo "ERROR: MODEL_${SLOT} not set in .env"; exit 1; }
+[[ -n "$PORT"  ]] || { echo "ERROR: PORT_${SLOT} not set in .env"; exit 1; }
+
+# slot N → LLM service name
+LLM_SERVICE="llm_${SLOT}"
+HEALTH_URL="http://localhost:${PORT}/v1/models"
+
+RUN_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/${BENCH_CFG}.yaml"
+[[ -n "$LIMIT" ]] && RUN_CMD="$RUN_CMD --limit $LIMIT"
+
+CONTAINER_NAME="${USER:-eval}_eval_slot${SLOT}_${BENCH_CFG}"
+
+echo ""
+echo "============================================"
+echo "  Slot         : $SLOT  ($LLM_SERVICE, port $PORT)"
+echo "  Model        : $MODEL"
+echo "  Benchmark    : $BENCH_CFG"
+[[ -n "$LIMIT" ]] && echo "  Limit        : $LIMIT problems"
+echo "============================================"
+echo ""
+
+# ---------- 1. start LLM service ----------
+cd "$PROJECT_ROOT"
+echo "[1/3] Starting $LLM_SERVICE..."
+docker compose --env-file "$ENV_FILE" up -d "$LLM_SERVICE"
+
+# ---------- 2. wait for LLM service to be healthy ----------
+echo "[2/3] Waiting for LLM service to be ready at $HEALTH_URL ..."
+ELAPSED=0
+INTERVAL=10
+while true; do
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || true)
+  if [[ "$HTTP_CODE" == "200" ]]; then
+    echo "      -> Ready! (${ELAPSED}s elapsed)"
+    break
+  fi
+  if [[ $ELAPSED -ge $TIMEOUT ]]; then
+    echo "ERROR: LLM service did not become ready within ${TIMEOUT}s."
+    echo "       Check logs: docker compose logs $LLM_SERVICE"
+    exit 1
+  fi
+  printf "      -> Not ready yet (HTTP %s), retrying in %ds... [%ds/%ds]\r" \
+    "$HTTP_CODE" "$INTERVAL" "$ELAPSED" "$TIMEOUT"
+  sleep $INTERVAL
+  ELAPSED=$((ELAPSED + INTERVAL))
+done
+
+# ---------- 3. launch eval ----------
+echo "[3/3] Launching eval container: $CONTAINER_NAME"
+docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+docker compose --env-file "$ENV_FILE" run \
+  --detach \
+  --name "$CONTAINER_NAME" \
+  --no-deps \
+  -e MODEL="$MODEL" \
+  -e PORT="$PORT" \
+  eval \
+  bash -c "pip install -q -r /app/requirements.txt && $RUN_CMD"
+
+echo ""
+echo "============================================"
+echo "  Eval running in: $CONTAINER_NAME"
+echo ""
+echo "  Watch logs:"
+echo "    docker logs -f $CONTAINER_NAME"
+echo ""
+echo "  Results will appear in:"
+echo "    logs/${BENCH_CFG}/$(echo "$MODEL" | cut -d/ -f2 | tr '[:upper:]' '[:lower:]')/"
+echo "============================================"
+echo ""
+
+if $FOLLOW; then
+  docker logs -f "$CONTAINER_NAME"
+fi
