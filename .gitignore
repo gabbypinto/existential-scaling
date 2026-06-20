@@ -210,6 +210,8 @@ Shell_CopyPaste.sh
 src/logs
 .DS_Store
 logs
+logs_new
 .env.dgx_spark
 models
 lcb_pro*
+metrics_summary.json
