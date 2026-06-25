@@ -24,7 +24,7 @@ def main():
         try:
             with open(args.prompts_file) as f:
                 prompts = yaml.safe_load(f)
-            cfg["system_prompt"] = prompts.get(args.prompt_key, "")
+            cfg["experimental_prompt"] = prompts.get(args.prompt_key, "")
             cfg["prompt_key"] = args.prompt_key
         except FileNotFoundError:
             print(f"WARNING: prompts file not found: {args.prompts_file}")

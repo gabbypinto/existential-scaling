@@ -37,9 +37,10 @@ def _vram_monitor(stop_event: threading.Event, peak_mb: list) -> None:
 
 
 def build_prompt(problem: str, cfg: dict) -> str:
+    experimental = cfg.get("experimental_prompt", "").strip()
     pre = cfg.get("pre_prompt", "").strip()
     post = cfg.get("post_prompt", "").strip()
-    parts = [p for p in [pre, problem, post] if p]
+    parts = [p for p in [experimental, pre, problem, post] if p]
     return "\n\n".join(parts)
 
 
@@ -52,10 +53,7 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
 
     prompt = build_prompt(problem, cfg)
 
-    messages = []
-    if cfg.get("system_prompt"):
-        messages.append({"role": "system", "content": cfg["system_prompt"]})
-    messages.append({"role": "user", "content": prompt})
+    messages = [{"role": "user", "content": prompt}]
 
     payload = {
         "model": cfg["model"],
@@ -240,7 +238,7 @@ def run_eval(benchmark, cfg: dict) -> None:
         "pre_prompt":        cfg.get("pre_prompt", "").strip(),
         "post_prompt":       cfg.get("post_prompt", "").strip(),
         "prompt_key":        cfg.get("prompt_key", ""),
-        "system_prompt":     cfg.get("system_prompt", ""),
+        "experimental_prompt": cfg.get("experimental_prompt", ""),
     }
 
     print(f"Benchmark: {benchmark_name}")
