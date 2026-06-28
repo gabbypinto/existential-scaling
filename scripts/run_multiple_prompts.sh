@@ -45,8 +45,6 @@ done
 [[ -f "$PROMPTS_FILE" ]] || { echo "ERROR: prompts file not found: $PROMPTS_FILE"; exit 1; }
 command -v screen >/dev/null 2>&1 || { echo "ERROR: screen not found — install it first"; exit 1; }
 
-VENV_PYTHON="$PROJECT_ROOT/.venv/bin/python"
-[[ -x "$VENV_PYTHON" ]] || { echo "ERROR: venv not found at $PROJECT_ROOT/.venv"; exit 1; }
 
 _env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]' || true; }
 
@@ -104,6 +102,9 @@ for SLOT in "${SLOTS[@]}"; do
   SLOT_SCRIPT="/tmp/sweep_slot_${SLOT}_${PARENT_PID}.sh"
   DONE_FILE="/tmp/sweep_slot_${SLOT}_${PARENT_PID}.done"
 
+  # Compute container-internal path to the prompts file (./src mounts to /app/src)
+  PROMPTS_CONTAINER=$(python3 -c "import os; print(os.path.relpath('$PROMPTS_FILE', '$PROJECT_ROOT/src'))" 2>/dev/null || echo "configs/prompts.yaml")
+
   # Write the per-slot script (outer vars expand now; inner vars are escaped)
   cat > "$SLOT_SCRIPT" << SLOT_SCRIPT_EOF
 #!/usr/bin/env bash
@@ -133,13 +134,8 @@ while true; do
   ELAPSED=\$((ELAPSED + 10))
 done
 
-PROMPT_KEYS=\$("$VENV_PYTHON" -c "
-import yaml
-with open('$PROMPTS_FILE') as f:
-    d = yaml.safe_load(f)
-for k in d:
-    print(k)
-")
+# Discover prompt keys from top-level YAML keys (no host python/venv needed)
+PROMPT_KEYS=\$(grep -E '^[A-Za-z_][A-Za-z0-9_]*:' "$PROMPTS_FILE" | cut -d: -f1)
 
 IFS=',' read -ra BENCHMARKS <<< "$BENCHMARKS_RAW"
 
@@ -149,17 +145,21 @@ while IFS= read -r PROMPT_KEY; do
     LOG_DIR="logs/\${BENCH}/$MODEL_SHORT/\$PROMPT_KEY"
     echo "[slot $SLOT]   \$BENCH -> \$LOG_DIR"
 
-    CMD=(
-      "$VENV_PYTHON" src/run_eval.py
-      --model      "src/configs/${MODEL_CFG}.yaml"
-      --benchmark  "src/configs/benchmarks/\${BENCH}.yaml"
-      --prompts-file "$PROMPTS_FILE"
-      --prompt-key   "\$PROMPT_KEY"
-      --log-dir      "\$LOG_DIR"
-    )
-    [[ -n "$LIMIT" ]] && CMD+=(--limit "$LIMIT")
+    PROMPT_KEY_SLUG=\$(echo "\$PROMPT_KEY" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_' | sed 's/_\$//')
+    CONTAINER_NAME="eval_${MODEL_SHORT}_\${BENCH}_\${PROMPT_KEY_SLUG}"
+    docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
 
-    if MODEL="$MODEL" PORT="$PORT" PYTHONPATH="$PROJECT_ROOT/src:\${PYTHONPATH:-}" "\${CMD[@]}"; then
+    _EVAL_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/\${BENCH}.yaml --prompts-file $PROMPTS_CONTAINER --prompt-key \${PROMPT_KEY} --log-dir \${LOG_DIR}$([ -n "$LIMIT" ] && echo " --limit $LIMIT")"
+
+    if docker compose --env-file "$ENV_FILE" run \\
+        --rm \\
+        --name "\$CONTAINER_NAME" \\
+        --no-deps \\
+        -e MODEL="$MODEL" \\
+        -e PORT="$PORT" \\
+        -e PYTHONUNBUFFERED=1 \\
+        eval \\
+        bash -c "pip install -q -r /app/requirements.txt && \$_EVAL_CMD"; then
       PASS+=("\$BENCH/\$PROMPT_KEY")
     else
       FAIL+=("\$BENCH/\$PROMPT_KEY")
@@ -194,11 +194,16 @@ echo ""
 echo "============================================"
 echo "  ${#LAUNCHED[@]} screen session(s) launched"
 echo ""
-echo "  Monitor:  screen -ls"
+echo "  Per-slot screens:"
+echo "    List:     screen -ls"
 for S in "${LAUNCHED[@]}"; do
-  echo "  Attach:   screen -r $S"
+  echo "    Attach:   screen -r $S"
 done
-echo "  Detach:   Ctrl-A D"
+echo "    Detach:   Ctrl-A D"
+echo ""
+echo "  Per-combo containers (one active at a time per slot):"
+echo "    List:     docker ps --filter name=eval_"
+echo "    Follow:   docker logs -f eval_<model>_<bench>_<prompt>"
 echo ""
 echo "  Logs: logs/{benchmark}/{model}/{prompt_key}/summary.json"
 echo "============================================"

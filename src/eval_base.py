@@ -55,10 +55,12 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
 
     messages = [{"role": "user", "content": prompt}]
 
+    context_window = cfg.get("context_window", 32768)
+
     payload = {
         "model": cfg["model"],
         "messages": messages,
-        "max_tokens": thinking_budget + max_output_tokens,
+        "max_tokens": min(thinking_budget + max_output_tokens, context_window),
         "temperature": temperature,
         "top_p": cfg.get("top_p", 1.0),
         "repetition_penalty": cfg.get("repetition_penalty", 1.0),
@@ -78,6 +80,20 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
     in_think = False
     showed_think_header = False
     showed_resp_header = False
+    ttft: float | None = None
+    seen_reasoning_content = False
+
+    # printing out log metrics in case initial prompt procesing takes a while
+    first_token_event = threading.Event()
+    def _prefill_heartbeat():
+        t = 0
+        while not first_token_event.wait(timeout=10):
+            t += 10
+            print(f"  [prefill: {t}s elapsed...]", flush=True)
+    threading.Thread(target=_prefill_heartbeat, daemon=True).start()
+
+    print("  Querying model...", flush=True)
+    t_request_start = time.time()
 
     with requests.post(url, json=payload, stream=True, timeout=timeout) as resp:
         resp.raise_for_status()
@@ -94,13 +110,55 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
             if not choices:
                 continue
             delta = choices[0].get("delta", {})
-            buf += delta.get("content") or ""
+            reasoning_token = delta.get("reasoning_content") or ""
+            token = delta.get("content") or ""
+
+            # Primary path: llama.cpp --reasoning-format deepseek-legacy sends
+            # thinking in reasoning_content (separate from content).
+            if reasoning_token:
+                seen_reasoning_content = True
+                if not first_token_event.is_set():
+                    first_token_event.set()
+                    ttft = time.time() - t_request_start
+                    print(f"  First token: {ttft:.1f}s", flush=True)
+                if not showed_think_header:
+                    print("------- THINKING --------", flush=True)
+                    showed_think_header = True
+                thinking += reasoning_token
+                print(reasoning_token, end="", flush=True)
+
+            if token:
+                if not first_token_event.is_set():
+                    first_token_event.set()
+                    ttft = time.time() - t_request_start
+                    print(f"  First token: {ttft:.1f}s", flush=True)
+                # deepseek-legacy also echoes <think> tags in content — strip
+                # them to avoid double-counting when reasoning_content is active.
+                if seen_reasoning_content:
+                    token = token.replace(THINK_OPEN, "").replace(THINK_CLOSE, "")
+                buf += token
 
             while True:
                 if not in_think:
-                    idx = buf.find(THINK_OPEN)
+                    idx_open  = buf.find(THINK_OPEN)
+                    idx_close = buf.find(THINK_CLOSE)
+
+                    # Implicit thinking: model emits </think> before any <think>
+                    # (e.g. DeepSeek R1 outputs reasoning without an opening tag)
+                    if idx_close != -1 and (idx_open == -1 or idx_close < idx_open):
+                        chunk_text = buf[:idx_close]
+                        thinking = answer + chunk_text  # retroactively reclassify
+                        answer = ""
+                        showed_resp_header = False
+                        buf = buf[idx_close + len(THINK_CLOSE):]
+                        in_think = False
+                        showed_think_header = True
+                        print("\n------- END THINKING ----\n", flush=True)
+                        continue
+
+                    idx = idx_open
                     if idx == -1:
-                        safe_len = max(0, len(buf) - len(THINK_OPEN) + 1)
+                        safe_len = max(0, len(buf) - max(len(THINK_OPEN), len(THINK_CLOSE)) + 1)
                         chunk_text = buf[:safe_len]
                         if chunk_text:
                             if not showed_resp_header:
@@ -142,6 +200,8 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
                         buf = buf[idx + len(THINK_CLOSE):]
                         in_think = False
 
+    first_token_event.set()  # stop heartbeat if response ended without content
+
     if buf:
         if not showed_resp_header:
             if showed_think_header:
@@ -166,6 +226,7 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
         "prompt_ms":            timings.get("prompt_ms"),
         "generation_ms":        timings.get("predicted_ms"),
         "tokens_per_sec_llama": timings.get("predicted_per_second"),
+        "ttft_s":               round(ttft, 2) if ttft is not None else None,
     }
     return thinking.strip(), answer.strip(), metrics
 
@@ -201,12 +262,6 @@ def run_eval(benchmark, cfg: dict) -> None:
     if not cfg.get("port"):
         raise ValueError("port not set — add to model.yaml or set PORT env var")
 
-    problems = benchmark.load_problems(cfg)
-
-    limit = cfg.get("limit")
-    if limit is not None:
-        problems = problems[:limit]
-
     benchmark_name = cfg.get("benchmark", "eval")
     model_name = cfg["model"]
     model_short = model_name.split("/")[-1].lower()
@@ -221,6 +276,19 @@ def run_eval(benchmark, cfg: dict) -> None:
         if cfg.get("enable_thinking", False)
         else cfg.get("nonthinking_temp", 0.0)
     )
+
+    print(f"Benchmark: {benchmark_name}", flush=True)
+    print(f"Model: {cfg['model']}", flush=True)
+    print(f"Thinking: {cfg.get('enable_thinking')} | Temperature: {temperature}", flush=True)
+    print(f"Loading dataset...", flush=True)
+
+    problems = benchmark.load_problems(cfg)
+
+    limit = cfg.get("limit")
+    if limit is not None:
+        problems = problems[:limit]
+
+    print(f"Loaded {len(problems)} problems.\n", flush=True)
 
     config_block = {
         "model":             cfg["model"],
@@ -241,18 +309,13 @@ def run_eval(benchmark, cfg: dict) -> None:
         "experimental_prompt": cfg.get("experimental_prompt", ""),
     }
 
-    print(f"Benchmark: {benchmark_name}")
-    print(f"Model: {cfg['model']}")
-    print(f"Thinking: {cfg.get('enable_thinking')} | Temperature: {temperature}")
-    print(f"Running {num_rounds} rounds x {len(problems)} problems\n")
-
     all_results: dict[int, dict] = {idx: {} for idx in range(1, len(problems) + 1)}
     total_elapsed_s = 0.0
 
     for rnd in range(1, num_rounds + 1):
         print(f"\n{'='*60}")
         print(f"ROUND {rnd}/{num_rounds}")
-        print(f"{'='*60}\n")
+        print(f"{'='*60}\n", flush=True)
 
         round_results = {}
         rnd_t0 = time.time()
