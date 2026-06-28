@@ -38,7 +38,7 @@ services:
 
   llm_2:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_2}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_2:-2}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_2:-1}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -64,7 +64,7 @@ services:
 
   llm_3:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_3}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_3:-3}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_3:-6}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -90,7 +90,7 @@ services:
 
   llm_4:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_4}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_4:-4}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_4:-7}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -116,7 +116,7 @@ services:
 
   llm_5:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_5}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_5:-5}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_5:-5}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -142,7 +142,7 @@ services:
 
   llm_6:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_6}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_6:-6}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_6:-6}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
