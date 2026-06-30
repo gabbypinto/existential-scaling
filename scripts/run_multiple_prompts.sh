@@ -135,15 +135,15 @@ while true; do
 done
 
 # Discover prompt keys from top-level YAML keys (no host python/venv needed)
-PROMPT_KEYS=\$(grep -E '^[A-Za-z_][A-Za-z0-9_]*:' "$PROMPTS_FILE" | cut -d: -f1)
+mapfile -t PROMPT_KEYS <<< "\$(grep -E '^[A-Za-z_][A-Za-z0-9_]*:' "$PROMPTS_FILE" | cut -d: -f1)"
 
 IFS=',' read -ra BENCHMARKS <<< "$BENCHMARKS_RAW"
 
-while IFS= read -r PROMPT_KEY; do
-  echo "[slot $SLOT] ---- Prompt: \$PROMPT_KEY ----"
-  for BENCH in "\${BENCHMARKS[@]}"; do
+for BENCH in "\${BENCHMARKS[@]}"; do
+  echo "[slot $SLOT] ---- Benchmark: \$BENCH ----"
+  for PROMPT_KEY in "\${PROMPT_KEYS[@]}"; do
     LOG_DIR="logs/\${BENCH}/$MODEL_SHORT/\$PROMPT_KEY"
-    echo "[slot $SLOT]   \$BENCH -> \$LOG_DIR"
+    echo "[slot $SLOT]   \$PROMPT_KEY -> \$LOG_DIR"
 
     PROMPT_KEY_SLUG=\$(echo "\$PROMPT_KEY" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_' | sed 's/_\$//')
     CONTAINER_NAME="eval_${MODEL_SHORT}_\${BENCH}_\${PROMPT_KEY_SLUG}"
@@ -153,6 +153,7 @@ while IFS= read -r PROMPT_KEY; do
 
     if docker compose --env-file "$ENV_FILE" run \\
         --rm \\
+        -T \\
         --name "\$CONTAINER_NAME" \\
         --no-deps \\
         -e MODEL="$MODEL" \\
@@ -166,7 +167,7 @@ while IFS= read -r PROMPT_KEY; do
       echo "[slot $SLOT] FAILED: \$BENCH/\$PROMPT_KEY"
     fi
   done
-done <<< "\$PROMPT_KEYS"
+done
 
 echo ""
 echo "[slot $SLOT] Stopping llm_$SLOT..."
