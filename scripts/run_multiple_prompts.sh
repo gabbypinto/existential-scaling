@@ -23,6 +23,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BENCHMARKS_RAW="aime24,aime25,gpqa,global_mmlu_lite"
 PROMPTS_FILE="$PROJECT_ROOT/src/configs/prompts.yaml"
 LIMIT=""
+NUM_ROUNDS=""
 TIMEOUT=900
 ENV_FILE="$PROJECT_ROOT/.env"
 MODEL_CFG="model"
@@ -34,6 +35,7 @@ while [[ $# -gt 0 ]]; do
     --benchmarks) BENCHMARKS_RAW="$2"; shift 2 ;;
     --prompts)    PROMPTS_FILE="$2";   shift 2 ;;
     --limit)      LIMIT="$2";          shift 2 ;;
+    --num-rounds) NUM_ROUNDS="$2";     shift 2 ;;
     --timeout)    TIMEOUT="$2";        shift 2 ;;
     --env-file)   ENV_FILE="$2";       shift 2 ;;
     --model)      MODEL_CFG="$2";      shift 2 ;;
@@ -149,7 +151,7 @@ for BENCH in "\${BENCHMARKS[@]}"; do
     CONTAINER_NAME="eval_${MODEL_SHORT}_\${BENCH}_\${PROMPT_KEY_SLUG}"
     docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
 
-    _EVAL_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/\${BENCH}.yaml --prompts-file $PROMPTS_CONTAINER --prompt-key \${PROMPT_KEY} --log-dir \${LOG_DIR}$([ -n "$LIMIT" ] && echo " --limit $LIMIT")"
+    _EVAL_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/\${BENCH}.yaml --prompts-file $PROMPTS_CONTAINER --prompt-key \${PROMPT_KEY} --log-dir \${LOG_DIR}$([ -n "$LIMIT" ] && echo " --limit $LIMIT")$([ -n "$NUM_ROUNDS" ] && echo " --num-rounds $NUM_ROUNDS")"
 
     if docker compose --env-file "$ENV_FILE" run \\
         --rm \\

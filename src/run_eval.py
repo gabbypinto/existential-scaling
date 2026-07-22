@@ -13,6 +13,7 @@ def main():
     parser.add_argument("--prompt-key", default="", help="Key to look up in --prompts-file")
     parser.add_argument("--prompts-file", default="src/configs/prompts.yaml", help="YAML file of system prompt variants")
     parser.add_argument("--log-dir", default=None, help="Override the auto-computed log directory")
+    parser.add_argument("--num-rounds", type=int, default=None, help="Rounds per problem for pass@k (overrides benchmark YAML)")
     args = parser.parse_args()
 
     model_cfg = load_config(args.model)
@@ -24,7 +25,7 @@ def main():
         try:
             with open(args.prompts_file) as f:
                 prompts = yaml.safe_load(f)
-            cfg["experimental_prompt"] = prompts.get(args.prompt_key, "")
+            cfg["system_prompt"] = prompts.get(args.prompt_key, "")
             cfg["prompt_key"] = args.prompt_key
         except FileNotFoundError:
             print(f"WARNING: prompts file not found: {args.prompts_file}")
@@ -45,6 +46,9 @@ def main():
 
     if args.limit is not None:
         cfg["limit"] = args.limit
+
+    if args.num_rounds is not None:
+        cfg["num_rounds"] = args.num_rounds
 
     benchmark = REGISTRY[benchmark_name]()
     run_eval(benchmark, cfg)

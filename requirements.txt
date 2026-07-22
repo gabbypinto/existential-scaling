@@ -8,3 +8,6 @@ scipy
 pandas
 pyarrow
 docker
+matplotlib
+scipy
+statsmodels
