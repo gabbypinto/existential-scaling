@@ -66,6 +66,8 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
         "max_tokens": min(thinking_budget + max_output_tokens, context_window),
         "temperature": temperature,
         "top_p": cfg.get("top_p", 1.0),
+        "top_k": cfg.get("top_k", 0),  # llama.cpp: 0 = disabled
+        "presence_penalty": cfg.get("presence_penalty", 0.0),
         "repetition_penalty": cfg.get("repetition_penalty", 1.0),
         "stream": True,
         "stream_options": {"include_usage": True},
@@ -303,6 +305,8 @@ def run_eval(benchmark, cfg: dict) -> None:
         "thinking_budget":   cfg.get("thinking_budget"),
         "max_output_tokens": cfg.get("max_output_tokens"),
         "top_p":             cfg.get("top_p"),
+        "top_k":             cfg.get("top_k"),
+        "presence_penalty":  cfg.get("presence_penalty"),
         "repetition_penalty": cfg.get("repetition_penalty"),
         "num_rounds":        num_rounds,
         "log_dir":           log_dir,

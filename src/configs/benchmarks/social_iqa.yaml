@@ -1,0 +1,16 @@
+
+benchmark: social_iqa
+# https://huggingface.co/datasets/allenai/social_i_qa
+# 3-way multiple-choice social commonsense reasoning (answer A, B, or C).
+# Uses the validation split (1,954 labeled questions); test split is unlabeled.
+# sample_size takes the first N questions (deterministic across runs); omit for all 1,954.
+sample_size: 250
+
+pre_prompt: |
+  Answer the following multiple-choice question about a social situation. Think
+  carefully, then end your response with "Answer: X" where X is A, B, or C.
+
+post_prompt: |
+  Provide your final answer as "Answer: X" on the last line, where X is A, B, or C.
+
+num_rounds: 1

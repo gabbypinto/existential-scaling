@@ -19,6 +19,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import yaml
 from benchmarks import REGISTRY
 
+CONFIGS_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "configs")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -26,17 +28,27 @@ def main():
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--port", type=int, default=None, help="Local server port — skip inference if omitted")
     parser.add_argument("--model", default="", help="Model name for inference")
+    parser.add_argument("--model-config", default="model", help="Model config yaml stem under src/configs/ (inference params)")
     args = parser.parse_args()
 
-    bench_yaml = os.path.join(
-        os.path.dirname(__file__), "..", "src", "configs", "benchmarks", f"{args.benchmark}.yaml"
-    )
+    bench_yaml = os.path.join(CONFIGS_DIR, "benchmarks", f"{args.benchmark}.yaml")
     if not os.path.exists(bench_yaml):
         print(f"ERROR: {bench_yaml} not found")
         sys.exit(1)
 
     with open(bench_yaml) as f:
-        cfg = yaml.safe_load(f)
+        bench_cfg = yaml.safe_load(f)
+
+    # Merge model config (inference params) under the benchmark config, mirroring run_eval.py
+    model_yaml = os.path.join(CONFIGS_DIR, f"{args.model_config}.yaml")
+    model_cfg = {}
+    if os.path.exists(model_yaml):
+        with open(model_yaml) as f:
+            model_cfg = yaml.safe_load(f) or {}
+    else:
+        print(f"WARNING: model config not found: {model_yaml} — using inference defaults")
+
+    cfg = {**model_cfg, **bench_cfg}
 
     if args.benchmark not in REGISTRY:
         print(f"ERROR: '{args.benchmark}' not in registry. Available: {list(REGISTRY)}")

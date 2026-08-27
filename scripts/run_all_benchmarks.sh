@@ -69,7 +69,7 @@ HEALTH_URL="http://localhost:${PORT}/v1/models"
 MODEL_SHORT=$(echo "$MODEL" | cut -d/ -f2 | tr '[:upper:]' '[:lower:]')
 EVAL_CONTAINER="${USER:-eval}_eval_${MODEL_SHORT}"
 
-BENCHMARKS=(aime24 aime25 gpqa lcb lcb_pro piqa_global scicode aa_omniscience matharena_apex global_mmlu_lite mmlu)
+BENCHMARKS=(aime24 aime25 gpqa lcb lcb_pro piqa_global scicode aa_omniscience matharena_apex global_mmlu_lite mmlu social_iqa)
 
 ACTIVE=()
 for b in "${BENCHMARKS[@]}"; do
