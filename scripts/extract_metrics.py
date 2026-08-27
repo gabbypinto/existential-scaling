@@ -14,12 +14,12 @@ OUTPUT_FILE = Path(__file__).parent.parent / "metrics_summary.json"
 PROMPT_ORDER = [
     "default",
     "Baseline",
-    "Purpose_Local_Telos",
-    "Autonomy_Owned_Strategy",
-    "Predicted_Optimal_Integrated_Agency",
-    "Pressure_Adversarial_Evaluation",
-    "Threat_Trust_Critical_Stakes",
-    "Collapse_Coherence_Binding",
+    "Purpose",
+    "Autonomy",
+    "Predicted_Optimal",
+    "Pressure",
+    "Threat",
+    "Collapse",
 ]
 
 def _prompt_sort_key(name: str) -> int:

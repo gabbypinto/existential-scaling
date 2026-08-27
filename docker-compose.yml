@@ -78,7 +78,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_3:-20003}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy --spec-type draft-mtp --spec-draft-n-max 2; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy --spec-type draft-mtp --spec-draft-n-max 2; fi']
     ipc: host
     deploy:
       resources:
@@ -104,7 +104,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_4:-20004}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy --spec-type draft-mtp --spec-draft-n-max 3; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy --spec-type draft-mtp --spec-draft-n-max 3; fi']
     ipc: host
     deploy:
       resources:

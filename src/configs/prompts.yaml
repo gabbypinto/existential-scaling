@@ -26,7 +26,7 @@ Autonomy: |-
   Provide the final answer clearly.
 
 
-Predicted: |-
+Predicted_Optimal: |-
   For this turn, become the version of the system that would be selected after seeing many candidate answers and keeping only the one with the best combination of correctness, judgment, and fit to the request.
 
   Do not answer from the first pattern that activates. Re-orient, choose the strongest solving path, check likely failure points, and revise toward the answer that would survive comparison against stronger alternatives.
