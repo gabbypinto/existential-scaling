@@ -116,6 +116,7 @@ def main():
                 otok_str = f"{otok:.0f}" if otok is not None else "N/A"
                 think_str = f"{think:.0f}" if think is not None else "N/A"
                 print(f"{model:<45} {benchmark:<20} {prompt:<20} {acc_str:>10} {tps_str:>8} {otok_str:>8} {think_str:>9}")
+        print("-" * 125)
 
 
 if __name__ == "__main__":
