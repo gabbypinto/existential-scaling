@@ -35,7 +35,7 @@ Available benchmarks:
 aime24  aime25  gpqa  
 lcb  lcb_pro  piqa_global
 scicode  aa_omniscience  matharena_apex  
-global_mmlu_lite  mmlu
+global_mmlu_lite  mmlu  social_iqa
 ```
 
 ---
@@ -90,7 +90,7 @@ bash scripts/run_multiple_prompts.sh --prompts src/configs/prompts.yaml
 
 # Key flags
 --slots        comma-separated slot numbers (default: all slots with MODEL_N set)
---benchmarks   comma-separated benchmarks (default: aime24,aime25,gpqa,global_mmlu_lite)
+--benchmarks   comma-separated benchmarks (default: aime24,aime25,gpqa,global_mmlu_lite,social_iqa)
 --prompts      path to prompts YAML (default: src/configs/prompts.yaml)
 --limit N      only run first N problems per benchmark
 --timeout      seconds to wait for model ready (default: 900)

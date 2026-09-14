@@ -26,7 +26,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_1:-20001}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
     ipc: host
     deploy:
       resources:
@@ -52,7 +52,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_2:-20002}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
     ipc: host
     deploy:
       resources:
@@ -72,13 +72,14 @@ services:
       - _REPO=${MODEL_3:-}
       - _FILE=${WEIGHTS_3:-}
       - _CTX=${CTX_SIZE:-32768}
+      - _SPEC=${SPEC_ARGS_3:-}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ./models:/app/models
     ports:
       - "127.0.0.1:${PORT_3:-20003}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy --spec-type draft-mtp --spec-draft-n-max 2; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy --spec-type draft-mtp --spec-draft-n-max 2; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy $$_SPEC; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy $$_SPEC; fi']
     ipc: host
     deploy:
       resources:
@@ -98,13 +99,14 @@ services:
       - _REPO=${MODEL_4:-}
       - _FILE=${WEIGHTS_4:-}
       - _CTX=${CTX_SIZE:-32768}
+      - _SPEC=${SPEC_ARGS_4:-}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ./models:/app/models
     ports:
       - "127.0.0.1:${PORT_4:-20004}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy --spec-type draft-mtp --spec-draft-n-max 3; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy --spec-type draft-mtp --spec-draft-n-max 3; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy $$_SPEC; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy $$_SPEC; fi']
     ipc: host
     deploy:
       resources:
@@ -130,7 +132,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_5:-20005}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
     ipc: host
     deploy:
       resources:
@@ -156,7 +158,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_6:-20006}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
     ipc: host
     deploy:
       resources:

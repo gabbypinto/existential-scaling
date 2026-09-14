@@ -8,7 +8,7 @@
 #   bash scripts/run_multiple_prompts.sh --slots 1,3         # specific slots only
 #
 # --slots       comma-separated slots to run (default: auto-detect from .env)
-# --benchmarks  comma-separated benchmarks  (default: aime24,aime25,gpqa,global_mmlu_lite)
+# --benchmarks  comma-separated benchmarks  (default: aime24,aime25,gpqa,global_mmlu_lite,social_iqa)
 # --prompts     path to prompt variants YAML (default: src/configs/prompts.yaml)
 # --limit       only run first N problems per benchmark
 # --timeout     seconds to wait for LLM service ready (default: 900)
@@ -20,7 +20,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-BENCHMARKS_RAW="aime24,aime25,gpqa,global_mmlu_lite"
+BENCHMARKS_RAW="aime24,aime25,gpqa,global_mmlu_lite,social_iqa"
 PROMPTS_FILE="$PROJECT_ROOT/src/configs/prompts.yaml"
 LIMIT=""
 NUM_ROUNDS=""

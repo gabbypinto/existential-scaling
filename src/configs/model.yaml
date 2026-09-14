@@ -8,8 +8,10 @@ max_output_tokens: 10000
 
 thinking_temp: 0.6
 nonthinking_temp: 0.1
-top_p: 0.90
-repetition_penalty: 1.15
+top_p: 0.95
+top_k: 20
+presence_penalty: 1.5
+repetition_penalty: 1.0
 
 
 # temp 0.0 for math 
