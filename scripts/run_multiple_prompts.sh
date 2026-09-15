@@ -63,7 +63,7 @@ _session_name() {
 # Fix HF cache dirs that Docker may have created as root
 if [[ -d "$HOME/.cache/huggingface" ]]; then
   echo "Fixing HF cache permissions..."
-  sudo chown -R "$USER:$USER" "$HOME/.cache/huggingface" 2>/dev/null \
+  sudo -n chown -R "$USER:$USER" "$HOME/.cache/huggingface" 2>/dev/null \
     || echo "WARNING: could not fix HF cache permissions — if you see PermissionError, run: sudo chown -R \$USER:\$USER ~/.cache/huggingface"
 fi
 
