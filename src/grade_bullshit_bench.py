@@ -160,6 +160,20 @@ def judge_one(result: dict, args) -> dict:
     return {"score": None, "judge_justification": None, "judge_raw": None, "judge_error": last_err}
 
 
+def _run_active(rf: Path) -> bool:
+    """True if run_eval is (probably) still writing this run.
+
+    run_eval rewrites round-N_results.json after every question and only writes
+    summary.json at the very end, so: no summary -> in progress; round file newer
+    than summary -> a new run has started on top of an old summary.
+    Grading an active run is pointless: run_eval overwrites the file from memory.
+    """
+    summary = rf.parent / "summary.json"
+    if not summary.exists():
+        return True
+    return rf.stat().st_mtime > summary.stat().st_mtime + 1.0
+
+
 def _group_stats(entries: list[dict], key: str) -> dict:
     groups: dict[str, list[int]] = defaultdict(list)
     for e in entries:
@@ -240,6 +254,8 @@ def main():
     p.add_argument("--store-raw", action="store_true", help="keep the raw judge output in the round file")
     p.add_argument("--limit", type=int, default=None, help="grade at most N responses (smoke test)")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--include-active", action="store_true",
+                   help="also grade runs that look unfinished (no summary.json / round file newer than it)")
     args = p.parse_args()
 
     if not args.logs_dir.exists():
@@ -260,9 +276,13 @@ def main():
             sys.exit(1)
 
     graded = errors = skipped = 0
+    active_skipped: list[Path] = []
     touched_dirs: dict[Path, list[Path]] = defaultdict(list)
 
     for rf in round_files:
+        if not args.include_active and _run_active(rf):
+            active_skipped.append(rf.parent)
+            continue
         touched_dirs[rf.parent].append(rf)
         data = json.loads(rf.read_text())
         changed = False
@@ -293,6 +313,11 @@ def main():
             rf.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
     print(f"\ngraded={graded} errors={errors} skipped(already graded)={skipped}")
+    for d in sorted(set(active_skipped)):
+        print(f"  SKIPPED (run still in progress, no final summary.json): {d.relative_to(args.logs_dir)}")
+    if not touched_dirs:
+        print("nothing to grade")
+        return
     if args.dry_run:
         return
 
