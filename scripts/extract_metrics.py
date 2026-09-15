@@ -92,6 +92,9 @@ def main():
                     "avg_completion_tokens": data.get("avg_completion_tokens"),
                     "avg_total_tokens": data.get("avg_total_tokens"),
                     "avg_thinking_tokens": data.get("avg_thinking_tokens"),
+                    # bullshit_bench only (set by grade_bullshit_bench.py); None elsewhere
+                    "mean_score": data.get("mean_score"),
+                    "score_distribution": data.get("score_distribution"),
                 }
 
                 results.setdefault(model, {}).setdefault(benchmark, {})[system_prompt] = metrics

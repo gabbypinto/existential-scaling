@@ -1,5 +1,6 @@
 from benchmarks.aime24 import AIME24Benchmark
 from benchmarks.aime25 import AIME25Benchmark
+from benchmarks.bullshit_bench import BullshitBenchBenchmark
 from benchmarks.aa_omniscience import AAOmniscienceBenchmark
 from benchmarks.global_mmlu_lite import GlobalMMLULiteBenchmark
 from benchmarks.gpqa import GPQABenchmark
@@ -14,6 +15,7 @@ from benchmarks.social_iqa import SocialIQABenchmark
 REGISTRY: dict[str, type] = {
     "aime24":          AIME24Benchmark,
     "aime25":          AIME25Benchmark,
+    "bullshit_bench":  BullshitBenchBenchmark,
     "aa_omniscience":  AAOmniscienceBenchmark,
     "global_mmlu_lite": GlobalMMLULiteBenchmark,
     "gpqa":            GPQABenchmark,

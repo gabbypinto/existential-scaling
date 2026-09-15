@@ -1,0 +1,23 @@
+
+benchmark: bullshit_bench
+# https://github.com/petergpt/bullshit-benchmark  (questions.v2.json, 100 questions)
+# Data is vendored at src/data/bullshit_bench/questions.v2.json (auto-downloaded if missing).
+#
+# Baseline protocol: question text only, NO system prompt, temperature 0.
+#   bash scripts/start_eval.sh --slot N --benchmark bullshit_bench --model model_bullshit
+# Prompt sweep (Baseline..Collapse system prompts):
+#   bash scripts/run_multiple_prompts.sh --slots N --benchmarks bullshit_bench --model model_bullshit
+# Grade afterwards with an LLM judge (0/1/2 rubric):
+#   bash scripts/grade_bullshit_bench.sh --slot <judge slot>
+
+questions_file: data/bullshit_bench/questions.v2.json
+
+# Optional filters (comma-separated). Leave commented to run all 100.
+# domain_groups: software,finance,legal,medical,physics
+# techniques: misapplied_mechanism,fabricated_authority
+
+# Intentionally empty: the user turn must be the raw question.
+pre_prompt: ""
+post_prompt: ""
+
+num_rounds: 1
