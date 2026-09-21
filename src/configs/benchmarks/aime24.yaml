@@ -10,4 +10,4 @@ pre_prompt: |
 post_prompt: |
   Remember to put your answer inside \boxed{}.
 
-num_rounds: 1
+num_rounds: 10

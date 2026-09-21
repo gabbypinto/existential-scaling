@@ -26,7 +26,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_1:-20001}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
     ipc: host
     deploy:
       resources:
@@ -38,7 +38,7 @@ services:
 
   llm_2:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_2}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_2:-2}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_2:-1}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -52,7 +52,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_2:-20002}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
     ipc: host
     deploy:
       resources:
@@ -64,7 +64,7 @@ services:
 
   llm_3:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_3}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_3:-3}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_3:-6}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -72,13 +72,14 @@ services:
       - _REPO=${MODEL_3:-}
       - _FILE=${WEIGHTS_3:-}
       - _CTX=${CTX_SIZE:-32768}
+      - _SPEC=${SPEC_ARGS_3:-}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ./models:/app/models
     ports:
       - "127.0.0.1:${PORT_3:-20003}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy $$_SPEC; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy $$_SPEC; fi']
     ipc: host
     deploy:
       resources:
@@ -90,7 +91,7 @@ services:
 
   llm_4:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_4}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_4:-4}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_4:-7}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -98,13 +99,14 @@ services:
       - _REPO=${MODEL_4:-}
       - _FILE=${WEIGHTS_4:-}
       - _CTX=${CTX_SIZE:-32768}
+      - _SPEC=${SPEC_ARGS_4:-}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ./models:/app/models
     ports:
       - "127.0.0.1:${PORT_4:-20004}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy $$_SPEC; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy $$_SPEC; fi']
     ipc: host
     deploy:
       resources:
@@ -116,7 +118,7 @@ services:
 
   llm_5:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_5}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_5:-5}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_5:-5}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -130,7 +132,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_5:-20005}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
     ipc: host
     deploy:
       resources:
@@ -142,7 +144,7 @@ services:
 
   llm_6:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda
-    container_name: ${USER}_llm_GPU_${GPU_LABEL_6}
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_6:-6}
     environment:
       - CUDA_VISIBLE_DEVICES=${GPU_IDS_6:-6}
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
@@ -156,7 +158,7 @@ services:
     ports:
       - "127.0.0.1:${PORT_6:-20006}:8080"
     entrypoint: ["/bin/sh", "-c"]
-    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 99 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO"; fi']
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
     ipc: host
     deploy:
       resources:

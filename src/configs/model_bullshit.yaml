@@ -1,0 +1,17 @@
+# BullshitBench variant of model.yaml: temperature 0 for both thinking and
+# non-thinking models (official baseline protocol). Everything else mirrors
+# model.yaml so token/latency numbers stay comparable with the other benchmarks.
+# model name and port come from .env (MODEL_N / PORT_N)
+
+context_window: 32768
+
+enable_thinking: true
+thinking_budget: 15000
+max_output_tokens: 10000
+
+thinking_temp: 0.0
+nonthinking_temp: 0.0
+top_p: 0.95
+top_k: 20
+presence_penalty: 1.5
+repetition_penalty: 1.0

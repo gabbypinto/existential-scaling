@@ -8,7 +8,7 @@
 #   bash scripts/run_multiple_prompts.sh --slots 1,3         # specific slots only
 #
 # --slots       comma-separated slots to run (default: auto-detect from .env)
-# --benchmarks  comma-separated benchmarks  (default: aime24,aime25,gpqa,global_mmlu_lite)
+# --benchmarks  comma-separated benchmarks  (default: aime24,aime25,gpqa,global_mmlu_lite,social_iqa)
 # --prompts     path to prompt variants YAML (default: src/configs/prompts.yaml)
 # --limit       only run first N problems per benchmark
 # --timeout     seconds to wait for LLM service ready (default: 900)
@@ -20,9 +20,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-BENCHMARKS_RAW="aime24,aime25,gpqa,global_mmlu_lite"
+BENCHMARKS_RAW="aime24,aime25,gpqa,global_mmlu_lite,social_iqa"
 PROMPTS_FILE="$PROJECT_ROOT/src/configs/prompts.yaml"
 LIMIT=""
+NUM_ROUNDS=""
 TIMEOUT=900
 ENV_FILE="$PROJECT_ROOT/.env"
 MODEL_CFG="model"
@@ -34,6 +35,7 @@ while [[ $# -gt 0 ]]; do
     --benchmarks) BENCHMARKS_RAW="$2"; shift 2 ;;
     --prompts)    PROMPTS_FILE="$2";   shift 2 ;;
     --limit)      LIMIT="$2";          shift 2 ;;
+    --num-rounds) NUM_ROUNDS="$2";     shift 2 ;;
     --timeout)    TIMEOUT="$2";        shift 2 ;;
     --env-file)   ENV_FILE="$2";       shift 2 ;;
     --model)      MODEL_CFG="$2";      shift 2 ;;
@@ -45,8 +47,6 @@ done
 [[ -f "$PROMPTS_FILE" ]] || { echo "ERROR: prompts file not found: $PROMPTS_FILE"; exit 1; }
 command -v screen >/dev/null 2>&1 || { echo "ERROR: screen not found — install it first"; exit 1; }
 
-VENV_PYTHON="$PROJECT_ROOT/.venv/bin/python"
-[[ -x "$VENV_PYTHON" ]] || { echo "ERROR: venv not found at $PROJECT_ROOT/.venv"; exit 1; }
 
 _env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]' || true; }
 
@@ -63,7 +63,7 @@ _session_name() {
 # Fix HF cache dirs that Docker may have created as root
 if [[ -d "$HOME/.cache/huggingface" ]]; then
   echo "Fixing HF cache permissions..."
-  sudo chown -R "$USER:$USER" "$HOME/.cache/huggingface" 2>/dev/null \
+  sudo -n chown -R "$USER:$USER" "$HOME/.cache/huggingface" 2>/dev/null \
     || echo "WARNING: could not fix HF cache permissions — if you see PermissionError, run: sudo chown -R \$USER:\$USER ~/.cache/huggingface"
 fi
 
@@ -104,6 +104,9 @@ for SLOT in "${SLOTS[@]}"; do
   SLOT_SCRIPT="/tmp/sweep_slot_${SLOT}_${PARENT_PID}.sh"
   DONE_FILE="/tmp/sweep_slot_${SLOT}_${PARENT_PID}.done"
 
+  # Compute container-internal path to the prompts file (./src mounts to /app/src)
+  PROMPTS_CONTAINER=$(python3 -c "import os; print(os.path.relpath('$PROMPTS_FILE', '$PROJECT_ROOT/src'))" 2>/dev/null || echo "configs/prompts.yaml")
+
   # Write the per-slot script (outer vars expand now; inner vars are escaped)
   cat > "$SLOT_SCRIPT" << SLOT_SCRIPT_EOF
 #!/usr/bin/env bash
@@ -133,40 +136,40 @@ while true; do
   ELAPSED=\$((ELAPSED + 10))
 done
 
-PROMPT_KEYS=\$("$VENV_PYTHON" -c "
-import yaml
-with open('$PROMPTS_FILE') as f:
-    d = yaml.safe_load(f)
-for k in d:
-    print(k)
-")
+# Discover prompt keys from top-level YAML keys (no host python/venv needed)
+mapfile -t PROMPT_KEYS <<< "\$(grep -E '^[A-Za-z_][A-Za-z0-9_]*:' "$PROMPTS_FILE" | cut -d: -f1)"
 
 IFS=',' read -ra BENCHMARKS <<< "$BENCHMARKS_RAW"
 
-while IFS= read -r PROMPT_KEY; do
-  echo "[slot $SLOT] ---- Prompt: \$PROMPT_KEY ----"
-  for BENCH in "\${BENCHMARKS[@]}"; do
+for BENCH in "\${BENCHMARKS[@]}"; do
+  echo "[slot $SLOT] ---- Benchmark: \$BENCH ----"
+  for PROMPT_KEY in "\${PROMPT_KEYS[@]}"; do
     LOG_DIR="logs/\${BENCH}/$MODEL_SHORT/\$PROMPT_KEY"
-    echo "[slot $SLOT]   \$BENCH -> \$LOG_DIR"
+    echo "[slot $SLOT]   \$PROMPT_KEY -> \$LOG_DIR"
 
-    CMD=(
-      "$VENV_PYTHON" src/run_eval.py
-      --model      "src/configs/${MODEL_CFG}.yaml"
-      --benchmark  "src/configs/benchmarks/\${BENCH}.yaml"
-      --prompts-file "$PROMPTS_FILE"
-      --prompt-key   "\$PROMPT_KEY"
-      --log-dir      "\$LOG_DIR"
-    )
-    [[ -n "$LIMIT" ]] && CMD+=(--limit "$LIMIT")
+    PROMPT_KEY_SLUG=\$(echo "\$PROMPT_KEY" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '_' | sed 's/_\$//')
+    CONTAINER_NAME="eval_${MODEL_SHORT}_\${BENCH}_\${PROMPT_KEY_SLUG}"
+    docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
 
-    if MODEL="$MODEL" PORT="$PORT" PYTHONPATH="$PROJECT_ROOT/src:\${PYTHONPATH:-}" "\${CMD[@]}"; then
+    _EVAL_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/\${BENCH}.yaml --prompts-file $PROMPTS_CONTAINER --prompt-key \${PROMPT_KEY} --log-dir \${LOG_DIR}$([ -n "$LIMIT" ] && echo " --limit $LIMIT")$([ -n "$NUM_ROUNDS" ] && echo " --num-rounds $NUM_ROUNDS")"
+
+    if docker compose --env-file "$ENV_FILE" run \\
+        --rm \\
+        -T \\
+        --name "\$CONTAINER_NAME" \\
+        --no-deps \\
+        -e MODEL="$MODEL" \\
+        -e PORT="$PORT" \\
+        -e PYTHONUNBUFFERED=1 \\
+        eval \\
+        bash -c "pip install -q -r /app/requirements.txt && \$_EVAL_CMD"; then
       PASS+=("\$BENCH/\$PROMPT_KEY")
     else
       FAIL+=("\$BENCH/\$PROMPT_KEY")
       echo "[slot $SLOT] FAILED: \$BENCH/\$PROMPT_KEY"
     fi
   done
-done <<< "\$PROMPT_KEYS"
+done
 
 echo ""
 echo "[slot $SLOT] Stopping llm_$SLOT..."
@@ -194,11 +197,16 @@ echo ""
 echo "============================================"
 echo "  ${#LAUNCHED[@]} screen session(s) launched"
 echo ""
-echo "  Monitor:  screen -ls"
+echo "  Per-slot screens:"
+echo "    List:     screen -ls"
 for S in "${LAUNCHED[@]}"; do
-  echo "  Attach:   screen -r $S"
+  echo "    Attach:   screen -r $S"
 done
-echo "  Detach:   Ctrl-A D"
+echo "    Detach:   Ctrl-A D"
+echo ""
+echo "  Per-combo containers (one active at a time per slot):"
+echo "    List:     docker ps --filter name=eval_"
+echo "    Follow:   docker logs -f eval_<model>_<bench>_<prompt>"
 echo ""
 echo "  Logs: logs/{benchmark}/{model}/{prompt_key}/summary.json"
 echo "============================================"
