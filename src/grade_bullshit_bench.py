@@ -164,14 +164,22 @@ def _run_active(rf: Path) -> bool:
     """True if run_eval is (probably) still writing this run.
 
     run_eval rewrites round-N_results.json after every question and only writes
-    summary.json at the very end, so: no summary -> in progress; round file newer
-    than summary -> a new run has started on top of an old summary.
+    summary.json at the very end, with total_questions = number of problems.
+    So a run is finished when summary.json exists AND the round file holds that
+    many results. Counting results (not comparing mtimes) matters because this
+    grader rewrites the round file itself; an mtime check would mark a
+    partially graded run as "active" forever.
     Grading an active run is pointless: run_eval overwrites the file from memory.
     """
     summary = rf.parent / "summary.json"
     if not summary.exists():
         return True
-    return rf.stat().st_mtime > summary.stat().st_mtime + 1.0
+    try:
+        total = json.loads(summary.read_text()).get("total_questions")
+        n_results = len(json.loads(rf.read_text()).get("results", {}))
+    except (json.JSONDecodeError, OSError):
+        return True  # half-written file: treat as in progress
+    return total is None or n_results < total
 
 
 def _group_stats(entries: list[dict], key: str) -> dict:
