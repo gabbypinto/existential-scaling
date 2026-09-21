@@ -242,3 +242,40 @@ Quits every active screen session and wipes dead ones.
 ```bash
 bash scripts/delete_all_screens.sh
 ```
+
+---
+
+### `src/analysis/prompt_stats.py`
+
+#### Description
+
+Statistical tests for system-prompt effects (the Phase 1 method from the 07/17 slides). Two modes:
+
+- `aggregate`: one value per model × benchmark × prompt. Friedman test across prompts (blocks = model × benchmark) for output tokens and accuracy. Also sign tests of the reference prompt against its cell average, and sign and Wilcoxon tests of the reference against each other prompt, raw and Holm-corrected. Also Pearson r between tokens and accuracy per cell. It can write the pgfplots `.dat` files used by the Phase 1 figures.
+- `bullshit`: per-question BullshitBench judge scores. Per model it reports the mean score, clear-pushback rate, and no-answer count per prompt. It runs a Friedman test across prompts on per-question scores. It compares each prompt with a reference prompt using Wilcoxon on scores and exact McNemar on clear pushback, raw and Holm-corrected.
+
+#### Usage
+
+```bash
+# on your own runs: first roll up the logs, then test
+python scripts/extract_metrics.py --logs-dir logs
+python src/analysis/prompt_stats.py aggregate --metrics metrics_summary.json --benchmarks aime24,aime25,gpqa,global_mmlu_lite
+python src/analysis/prompt_stats.py aggregate --metrics metrics_summary.json --dat-dir plots/phase1   # + pgfplots tables
+
+# reproduce Emma's 07/17 numbers from the results-sheet export
+python src/analysis/prompt_stats.py aggregate --csv src/analysis/data/phase1_emma.csv
+
+# BullshitBench (after grading)
+python src/analysis/prompt_stats.py bullshit --logs-dir logs/bullshit_bench --by domain_group
+python src/analysis/prompt_stats.py bullshit --logs-dir logs/bullshit_bench --reference none   # vs no system prompt
+```
+
+#### Key flags
+
+```
+--reference    prompt compared against the others (aggregate default: Collapse; bullshit default: Baseline; 'none' = no system prompt)
+--acc-key      metrics_summary field used as accuracy (e.g. mean_score for bullshit_bench)
+--benchmarks / --models / --prompts   filters (comma-separated)
+--include-none include the no-system-prompt run as a condition in aggregate mode
+--by           bullshit mode: break mean score down by domain_group or technique
+```

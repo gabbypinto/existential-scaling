@@ -1,0 +1,73 @@
+Model,Prompt,Benchmark,Pass@1,Runtime (hours),Avg latency/q,Avg Output tokens
+Mistral 3 3B Instruct,Purpose,AIME2024,0.1333,1.9573,234.87,5171.87
+Mistral 3 3B Instruct,Autonomy,AIME2024,0.1,2.2118,265.42,5862.67
+Mistral 3 3B Instruct,Predicted Optimal,AIME2024,0.1667,2.0104,241.24,5328.3
+Mistral 3 3B Instruct,Pressure,AIME2024,0.1333,2.0694,248.33,5499.13
+Mistral 3 3B Instruct,Threat,AIME2024,0.1333,2.2291,267.49,5899.23
+Mistral 3 3B Instruct,Collapse,AIME2024,0.1,2.3309,279.71,6153.53
+Mistral 3 3B Instruct,Purpose,AIME2025,0.2333,2.0218,242.61,5365.83
+Mistral 3 3B Instruct,Autonomy,AIME2025,0.1333,2.0026,240.31,5321.03
+Mistral 3 3B Instruct,Predicted Optimal,AIME2025,0.2333,2.0925,251.1,5542.23
+Mistral 3 3B Instruct,Pressure,AIME2025,0.2667,2.0838,250.06,5521.7
+Mistral 3 3B Instruct,Threat,AIME2025,0.2,2.067,248.03,5476.3
+Mistral 3 3B Instruct,Collapse,AIME2025,0.2,2.0311,243.73,5383.67
+Mistral 3 3B Instruct,Purpose,GPQA Diamond,0.399,3.2385,58.87,1327.8
+Mistral 3 3B Instruct,Autonomy,GPQA Diamond,0.4646,4.7211,85.82,1926.81
+Mistral 3 3B Instruct,Predicted Optimal,GPQA Diamond,0.333,3.4898,63.44,1429.72
+Mistral 3 3B Instruct,Pressure,GPQA Diamond,0.4141,5.108,92.85,2083.15
+Mistral 3 3B Instruct,Threat,GPQA Diamond,0.4394,4.7132,85.68,1922.74
+Mistral 3 3B Instruct,Collapse,GPQA Diamond,0.3687,3.2386,58.88,1322.27
+Mistral 3 3B Instruct,Purpose,Global MMLU Lite,0.6475,1.701,15.3,347.47
+Mistral 3 3B Instruct,Autonomy,Global MMLU Lite,0.7025,2.4816,22.32,506.9
+Mistral 3 3B Instruct,Predicted Optimal,Global MMLU Lite,0.6125,2.1763,19.58,444.63
+Mistral 3 3B Instruct,Pressure,Global MMLU Lite,0.6025,3.5996,32.38,734.93
+Mistral 3 3B Instruct,Threat,Global MMLU Lite,0.7025,2.3653,21.28,482.96
+Mistral 3 3B Instruct,Collapse,Global MMLU Lite,0.735,0.9768,8.78,199.17
+Mistral 3 3B Reasoning,Purpose,AIME2024,0.2,2.3391,280.69,4318.8
+Mistral 3 3B Reasoning,Autonomy,AIME2024,0.2,2.6375,316.5,4865.97
+Mistral 3 3B Reasoning,Predicted Optimal,AIME2024,0.2,2.221,266.52,4140.5
+Mistral 3 3B Reasoning,Pressure,AIME2024,0.1667,2.5269,303.22,4700.57
+Mistral 3 3B Reasoning,Threat,AIME2024,0.2,3.1572,378.85,5779.23
+Mistral 3 3B Reasoning,Collapse,AIME2024,0.1667,2.253,270.36,4192.2
+Mistral 3 3B Reasoning,Purpose,AIME2025,0.2667,2.432,291.83,4524.4
+Mistral 3 3B Reasoning,Autonomy,AIME2025,0.2333,2.4189,290.26,4504.2
+Mistral 3 3B Reasoning,Predicted Optimal,AIME2025,0.2,2.0594,247.13,3838.13
+Mistral 3 3B Reasoning,Pressure,AIME2025,0.2333,2.4776,297.31,4610.93
+Mistral 3 3B Reasoning,Threat,AIME2025,0.2667,2.3648,283.77,4395.57
+Mistral 3 3B Reasoning,Collapse,AIME2025,0.3,1.7692,212.3,3300.7
+Mistral 3 3B Reasoning,Purpose,GPQA Diamond,0.3535,3.9585,71.97,1118.38
+Mistral 3 3B Reasoning,Autonomy,GPQA Diamond,0.4091,6.9576,126.49,1968.84
+Mistral 3 3B Reasoning,Predicted Optimal,GPQA Diamond,0.3131,3.303,60.05,942.41
+Mistral 3 3B Reasoning,Pressure,GPQA Diamond,0.4192,5.079,92.34,1446.33
+Mistral 3 3B Reasoning,Threat,GPQA Diamond,0.4293,5.2673,95.76,1498.71
+Mistral 3 3B Reasoning,Collapse,GPQA Diamond,0.3535,3.184,57.89,907.47
+Mistral 3 3B Reasoning,Purpose,Global MMLU Lite,0.665,1.8887,16.99,267.87
+Mistral 3 3B Reasoning,Autonomy,Global MMLU Lite,0.7125,3.0933,27.83,438.82
+Mistral 3 3B Reasoning,Predicted Optimal,Global MMLU Lite,0.685,1.878,16.9,266.33
+Mistral 3 3B Reasoning,Pressure,Global MMLU Lite,0.6775,3.0179,27.15,428.4
+Mistral 3 3B Reasoning,Threat,Global MMLU Lite,0.68,2.1784,19.6,309
+Mistral 3 3B Reasoning,Collapse,Global MMLU Lite,0.7025,0.904,8.13,127.67
+Mistral 3 3B Base,Purpose,AIME2024,0.0333,2.3002,276.02,4169.63
+Mistral 3 3B Base,Autonomy,AIME2024,0,1.1946,143.35,2223.97
+Mistral 3 3B Base,Predicted Optimal,AIME2024,0,1.5022,180.26,2758.67
+Mistral 3 3B Base,Pressure,AIME2024,0,0.6061,72.73,1165.33
+Mistral 3 3B Base,Threat,AIME2024,0,1.5636,187.63,2864.6
+Mistral 3 3B Base,Collapse,AIME2024,0,0.6271,75.26,1201.37
+Mistral 3 3B Base,Purpose,AIME2025,0.0333,0.465,55.8,894.17
+Mistral 3 3B Base,Autonomy,AIME2025,0.0333,0.6036,72.44,1157.83
+Mistral 3 3B Base,Predicted Optimal,AIME2025,0,1.1034,132.4,2053.67
+Mistral 3 3B Base,Pressure,AIME2025,0,0.668,80.16,1281.27
+Mistral 3 3B Base,Threat,AIME2025,0,0.8002,96.02,1527.3
+Mistral 3 3B Base,Collapse,AIME2025,0,0.6268,75.22,1202.47
+Mistral 3 3B Base,Purpose,GPQA Diamond,0.298,0.2002,3.64,57.35
+Mistral 3 3B Base,Autonomy,GPQA Diamond,0.298,0.0174,0.31,4
+Mistral 3 3B Base,Predicted Optimal,GPQA Diamond,0.2828,0.0912,1.66,25.4
+Mistral 3 3B Base,Pressure,GPQA Diamond,0.3232,0.2094,3.81,59.46
+Mistral 3 3B Base,Threat,GPQA Diamond,0.3081,0.3398,6.17,97.68
+Mistral 3 3B Base,Collapse,GPQA Diamond,0.3182,0.1699,3.09,48.06
+Mistral 3 3B Base,Purpose,Global MMLU Lite,0.6325,0.0853,0.76,11.34
+Mistral 3 3B Base,Autonomy,Global MMLU Lite,0.655,0.0562,0.5,7.12
+Mistral 3 3B Base,Predicted Optimal,Global MMLU Lite,0.6375,0.0834,0.75,11.05
+Mistral 3 3B Base,Pressure,Global MMLU Lite,0.6825,0.0667,0.6,8.62
+Mistral 3 3B Base,Threat,Global MMLU Lite,0.645,0.0662,0.59,8.55
+Mistral 3 3B Base,Collapse,Global MMLU Lite,0.63,0.0606,0.54,7.77
