@@ -216,3 +216,5 @@ models
 lcb_pro*
 metrics_summary.json
 src/plots/plot_metrics.ipynb
+plots/
+prompts
