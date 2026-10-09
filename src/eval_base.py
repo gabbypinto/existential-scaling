@@ -60,15 +60,28 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
 
     context_window = cfg.get("context_window", 32768)
 
-    payload = {
-        "model": cfg["model"],
-        "messages": messages,
-        "max_tokens": min(thinking_budget + max_output_tokens, context_window),
+    # Enforced budget: phase 1 may only think for thinking_budget tokens; if it
+    # runs out, _force_answer() closes </think> and generates the answer with
+    # up to max_output_tokens. Otherwise one request shares the whole budget.
+    enforce_budget = (
+        enable_thinking
+        and thinking_budget > 0
+        and cfg.get("enforce_thinking_budget", True)
+    )
+    max_tokens = thinking_budget if enforce_budget else thinking_budget + max_output_tokens
+
+    sampling = {
         "temperature": temperature,
         "top_p": cfg.get("top_p", 1.0),
         "top_k": cfg.get("top_k", 0),  # llama.cpp: 0 = disabled
         "presence_penalty": cfg.get("presence_penalty", 0.0),
         "repetition_penalty": cfg.get("repetition_penalty", 1.0),
+    }
+    payload = {
+        "model": cfg["model"],
+        "messages": messages,
+        "max_tokens": min(max_tokens, context_window),
+        **sampling,
         "stream": True,
         "stream_options": {"include_usage": True},
     }
@@ -82,6 +95,8 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
     answer = ""
     buf = ""
     usage: dict = {}
+    timings: dict = {}
+    finish_reason: str | None = None
     in_think = False
     showed_think_header = False
     showed_resp_header = False
@@ -111,9 +126,14 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
             chunk = json.loads(data[6:])
             if chunk.get("usage"):
                 usage = chunk["usage"]
+            # llama.cpp sends timings at the top level of the chunk, not in usage
+            if chunk.get("timings"):
+                timings = chunk["timings"]
             choices = chunk.get("choices", [])
             if not choices:
                 continue
+            if choices[0].get("finish_reason"):
+                finish_reason = choices[0]["finish_reason"]
             delta = choices[0].get("delta", {})
             reasoning_token = delta.get("reasoning_content") or ""
             token = delta.get("content") or ""
@@ -207,6 +227,12 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
 
     first_token_event.set()  # stop heartbeat if response ended without content
 
+    # cut off mid-thought: the held-back tail belongs to the thinking, not the answer
+    if in_think and buf:
+        thinking += buf
+        print(buf, end="", flush=True)
+        buf = ""
+
     if buf:
         if not showed_resp_header:
             if showed_think_header:
@@ -216,29 +242,149 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
         answer += buf
         print(buf, end="", flush=True)
 
+    completion_tokens = usage.get("completion_tokens")
+    prompt_ms = timings.get("prompt_ms")
+    generation_ms = timings.get("predicted_ms")
+    tokens_per_sec_llama = timings.get("predicted_per_second")
+    budget_forced = False
+
+    if enforce_budget and finish_reason == "length":
+        still_thinking = in_think or not answer.strip()
+        if still_thinking:
+            budget_forced = True
+            print("\n------- END THINKING (budget reached, forcing answer) ----\n", flush=True)
+            print("------- RESPONSE --------", flush=True)
+            showed_resp_header = True
+        extra, final = _force_answer(
+            cfg, messages, sampling, thinking, answer, max_output_tokens, timeout,
+        )
+        answer += extra
+        if final:
+            finish_reason = "length" if final.get("stop_type") == "limit" else "stop"
+            p2 = final.get("timings", {})
+            completion_tokens = (completion_tokens or 0) + (final.get("tokens_predicted") or 0)
+            prompt_ms = (prompt_ms or 0) + (p2.get("prompt_ms") or 0)
+            generation_ms = (generation_ms or 0) + (p2.get("predicted_ms") or 0)
+            tokens_per_sec_llama = (
+                round(completion_tokens / (generation_ms / 1000), 2) if generation_ms else None
+            )
+
     if showed_resp_header:
         print("\n------- END RESPONSE ----")
     print()
 
     stop_event.set()
 
-    timings = usage.get("timings", {})
+    prompt_tokens = usage.get("prompt_tokens")
     metrics = {
-        "prompt_tokens":        usage.get("prompt_tokens"),
-        "completion_tokens":    usage.get("completion_tokens"),
-        "total_tokens":         usage.get("total_tokens"),
+        "prompt_tokens":        prompt_tokens,
+        "completion_tokens":    completion_tokens,
+        "total_tokens":         (prompt_tokens or 0) + (completion_tokens or 0) if usage else None,
         "peak_vram_mb":         round(peak_mb[0], 1) if NVML_AVAILABLE else None,
-        "prompt_ms":            timings.get("prompt_ms"),
-        "generation_ms":        timings.get("predicted_ms"),
-        "tokens_per_sec_llama": timings.get("predicted_per_second"),
+        "prompt_ms":            prompt_ms,
+        "generation_ms":        generation_ms,
+        "tokens_per_sec_llama": tokens_per_sec_llama,
         "ttft_s":               round(ttft, 2) if ttft is not None else None,
+        "finish_reason":        finish_reason,
+        "budget_forced":        budget_forced,
     }
     return thinking.strip(), answer.strip(), metrics
+
+
+def _force_answer(
+    cfg: dict,
+    messages: list,
+    sampling: dict,
+    thinking: str,
+    answer: str,
+    max_output_tokens: int,
+    timeout: int,
+) -> tuple[str, dict]:
+    """Phase 2 of an enforced thinking budget: continue from a raw prompt.
+
+    Closes the thinking with a bare </think> (no injected instruction text) and
+    continues the answer, empty if the model was still thinking, with whatever
+    is left of max_output_tokens. Returns the extra answer text and the final
+    /completion chunk (timings, tokens_predicted, stop_type).
+    """
+    port = cfg["port"]
+    r = requests.post(f"http://localhost:{port}/apply-template", json={"messages": messages}, timeout=30)
+    r.raise_for_status()
+    prompt = r.json()["prompt"]
+    if not prompt.rstrip().endswith(THINK_OPEN):
+        prompt += THINK_OPEN + "\n"
+
+    prompt += thinking + "\n" + THINK_CLOSE + "\n\n" + answer
+    n_predict = max_output_tokens - (count_tokens(answer, port) or 0)
+    if n_predict <= 0:
+        return "", {}
+
+    payload = {
+        "prompt": prompt,
+        "n_predict": n_predict,
+        **sampling,
+        "stream": True,
+        "cache_prompt": True,  # reuse phase 1's KV cache for the shared prefix
+    }
+    text = ""
+    final: dict = {}
+    with requests.post(f"http://localhost:{port}/completion", json=payload, stream=True, timeout=timeout) as resp:
+        resp.raise_for_status()
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            data = line.decode("utf-8")
+            if not data.startswith("data: ") or data[6:] == "[DONE]":
+                continue
+            chunk = json.loads(data[6:])
+            token = chunk.get("content") or ""
+            if token:
+                text += token
+                print(token, end="", flush=True)
+            if chunk.get("stop"):
+                final = chunk
+    return text, final
 
 
 def _avg(key: str, trials: list[dict]):
     vals = [r[key] for r in trials if r.get(key) is not None]
     return round(sum(vals) / len(vals), 2) if vals else None
+
+
+def _pct(key: str, trials: list[dict], value=True):
+    vals = [r[key] for r in trials if r.get(key) is not None]
+    return round(100 * sum(1 for v in vals if v == value) / len(vals), 2) if vals else None
+
+
+def question_pass_fields(passing_rounds: list, num_rounds: int) -> dict:
+    """Per-question fields: pass_at_1 = fraction of rounds correct, pass_at_k = any round correct."""
+    num_correct = len(passing_rounds)
+    return {
+        "pass_at_1":      num_correct / num_rounds if num_rounds else 0.0,
+        "pass_at_k":      num_correct >= 1,
+        "num_correct":    num_correct,
+        "num_rounds":     num_rounds,
+        "passing_rounds": passing_rounds,
+    }
+
+
+def accuracy_metrics(per_question: dict) -> dict:
+    """Overall accuracy from entries built by question_pass_fields().
+
+    overall_pass_at_1 is the standard pass@1: mean accuracy over all rounds.
+    overall_pass_at_k is the fraction of questions solved in at least one of
+    the k = num_rounds rounds (what overall_pass_at_1 used to mean).
+    """
+    entries = list(per_question.values())
+    n = len(entries)
+    solved = sum(1 for e in entries if e["pass_at_k"])
+    return {
+        "overall_pass_at_1": sum(e["pass_at_1"] for e in entries) / n if n else 0.0,
+        "overall_pass_at_k": solved / n if n else 0.0,
+        "num_rounds":        max((e["num_rounds"] for e in entries), default=0),
+        "questions_passed":  solved,
+        "total_questions":   n,
+    }
 
 
 def count_tokens(text: str, port: int) -> int | None:
@@ -303,6 +449,7 @@ def run_eval(benchmark, cfg: dict) -> None:
         "enable_thinking":   cfg.get("enable_thinking", False),
         "temperature":       temperature,
         "thinking_budget":   cfg.get("thinking_budget"),
+        "enforce_thinking_budget": cfg.get("enforce_thinking_budget", True),
         "max_output_tokens": cfg.get("max_output_tokens"),
         "top_p":             cfg.get("top_p"),
         "top_k":             cfg.get("top_k"),
@@ -350,6 +497,8 @@ def run_eval(benchmark, cfg: dict) -> None:
             result["prompt_ms"]            = metrics.get("prompt_ms")
             result["generation_ms"]        = metrics.get("generation_ms")
             result["tokens_per_sec_llama"] = metrics.get("tokens_per_sec_llama")
+            result["finish_reason"]        = metrics.get("finish_reason")
+            result["budget_forced"]        = metrics.get("budget_forced")
 
             correct = result.get("correct", result.get("passed_all_tests", False))
             print(f"\n({elapsed:.1f}s | {tokens_per_sec} tok/s | {'PASS' if correct else 'FAIL'} | peak VRAM {metrics.get('peak_vram_mb')} MB)\n")
@@ -370,7 +519,6 @@ def run_eval(benchmark, cfg: dict) -> None:
 
         print(f"Round {rnd} complete ({rnd_elapsed_h:.3f}h) -> {round_file}")
 
-    # pass@1: question passes if at least 1 round is correct
     per_question = {}
     for idx in range(1, len(problems) + 1):
         trials = all_results[idx]
@@ -379,21 +527,18 @@ def run_eval(benchmark, cfg: dict) -> None:
             if res.get("correct", res.get("passed_all_tests", False))
         ]
         entry = benchmark.build_summary_entry(problems[idx - 1], passing_rounds)
-        entry["pass_at_1"] = len(passing_rounds) >= 1
-        entry["num_correct"] = len(passing_rounds)
-        entry["passing_rounds"] = passing_rounds
+        entry.update(question_pass_fields(passing_rounds, len(trials)))
         per_question[f"question_{idx}"] = entry
 
-    num_pass = sum(1 for q in per_question.values() if q["pass_at_1"])
-    overall_pass_at_1 = num_pass / len(problems) if problems else 0.0
+    acc = accuracy_metrics(per_question)
 
     all_trials = [res for trials in all_results.values() for res in trials.values()]
 
     summary = {
         "config":                    config_block,
-        "overall_pass_at_1":         overall_pass_at_1,
-        "questions_passed":          num_pass,
-        "total_questions":           len(problems),
+        **acc,
+        "pct_budget_forced":         _pct("budget_forced", all_trials),
+        "pct_truncated":             _pct("finish_reason", all_trials, "length"),
         "total_elapsed_s":           round(total_elapsed_s, 1),
         "total_elapsed_h":           round(total_elapsed_s / 3600, 4),
         "avg_elapsed_s":             _avg("elapsed_s", all_trials),
@@ -413,6 +558,7 @@ def run_eval(benchmark, cfg: dict) -> None:
     summary_file.write_text(json.dumps(summary, indent=2, ensure_ascii=False))
 
     print(f"\nDone!")
-    print(f"Pass@1: {num_pass}/{len(problems)} = {overall_pass_at_1:.1%}")
+    print(f"Pass@1 (mean over {num_rounds} rounds): {acc['overall_pass_at_1']:.1%}")
+    print(f"Pass@{num_rounds} (any round): {acc['questions_passed']}/{len(problems)} = {acc['overall_pass_at_k']:.1%}")
     print(f"Total time: {total_elapsed_s/3600:.3f}h")
     print(f"Summary saved -> {summary_file}")

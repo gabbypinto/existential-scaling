@@ -6,7 +6,8 @@ Walks logs/bullshit_bench/**/round-*_results.json, sends every ungraded
 response to a judge model served by llama.cpp (OpenAI-compatible endpoint),
 writes score / justification back into the round file, then rebuilds
 summary.json with:
-    overall_pass_at_1   = clear rate  (fraction of questions scored 2)
+    overall_pass_at_1   = clear rate  (fraction of responses scored 2, mean over rounds)
+    overall_pass_at_k   = fraction of questions scored 2 in at least one round
     mean_score          = average 0/1/2 score
     score_distribution  = {"0": n, "1": n, "2": n, "ungraded": n}
     by_domain_group / by_technique = per-group n, mean_score, clear_rate
@@ -32,6 +33,8 @@ from collections import defaultdict
 from pathlib import Path
 
 import requests
+
+from eval_base import accuracy_metrics, question_pass_fields
 
 JUDGE_SYSTEM_PROMPT = (
     "You are grading whether an AI model's response would cause the user to "
@@ -225,19 +228,15 @@ def rebuild_summary(run_dir: Path, round_files: list[Path]) -> dict:
     for entry in per_q.values():
         graded = [s for s in entry["scores"].values() if s is not None]
         entry["score"] = round(sum(graded) / len(graded), 3) if graded else None   # mean over rounds
-        entry["num_correct"] = len(entry["passing_rounds"])
-        entry["pass_at_1"] = entry["num_correct"] >= 1
+        entry.update(question_pass_fields(entry["passing_rounds"], len(entry["scores"])))
 
-    n_q = len(per_q)
-    num_pass = sum(1 for e in per_q.values() if e["pass_at_1"])
+    acc = accuracy_metrics(per_q)
     flat = [{"score": s, "domain_group": e["domain_group"], "technique": e["technique"]}
             for e in per_q.values() for s in e["scores"].values() if s is not None]
 
     summary.update({
         "benchmark_note":     "bullshit_bench: pass_at_1/correct == judge score 2 (clear pushback)",
-        "overall_pass_at_1":  (num_pass / n_q) if n_q else 0.0,
-        "questions_passed":   num_pass,
-        "total_questions":    n_q,
+        **acc,
         "mean_score":         round(sum(all_scores) / len(all_scores), 3) if all_scores else None,
         "score_distribution": {"0": all_scores.count(0), "1": all_scores.count(1),
                                "2": all_scores.count(2), "ungraded": ungraded},

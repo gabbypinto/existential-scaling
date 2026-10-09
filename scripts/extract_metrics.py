@@ -84,7 +84,10 @@ def main():
                     data = json.load(f)
 
                 metrics = {
+                    # pass@1 = mean accuracy over rounds; pass_at_k = solved in any of num_rounds
                     "accuracy": data.get("overall_pass_at_1"),
+                    "pass_at_k": data.get("overall_pass_at_k"),
+                    "num_rounds": data.get("num_rounds"),
                     "questions_passed": data.get("questions_passed"),
                     "total_questions": data.get("total_questions"),
                     "avg_tokens_per_sec": data.get("avg_tokens_per_sec"),
@@ -92,6 +95,8 @@ def main():
                     "avg_completion_tokens": data.get("avg_completion_tokens"),
                     "avg_total_tokens": data.get("avg_total_tokens"),
                     "avg_thinking_tokens": data.get("avg_thinking_tokens"),
+                    "pct_budget_forced": data.get("pct_budget_forced"),
+                    "pct_truncated": data.get("pct_truncated"),
                     # bullshit_bench only (set by grade_bullshit_bench.py); None elsewhere
                     "mean_score": data.get("mean_score"),
                     "score_distribution": data.get("score_distribution"),

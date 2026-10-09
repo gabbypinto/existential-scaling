@@ -5,6 +5,13 @@ from datasets import load_dataset
 from benchmarks.base import Benchmark
 
 
+def grade(answer: str, correct_answer) -> tuple[str | None, bool]:
+    """Extract the boxed integer and compare numerically (keys like "025" match 25)."""
+    boxed = re.search(r"\\boxed\{(\d+)\}", answer)
+    extracted = boxed.group(1) if boxed else None
+    return extracted, extracted is not None and int(extracted) == int(correct_answer)
+
+
 class AIME24Benchmark(Benchmark):
     def load_problems(self, cfg: dict) -> list:
         # split is "train" — only split available, 30 problems (I+II combined)
@@ -18,10 +25,8 @@ class AIME24Benchmark(Benchmark):
         return f"{problem_id}: {row['problem'][:60]}..."
 
     def build_result(self, row: dict, thinking: str, answer: str, metrics: dict, elapsed: float) -> dict:
-        boxed = re.search(r"\\boxed\{(\d+)\}", answer)
-        extracted = boxed.group(1) if boxed else None
-        correct_answer = str(row["answer"])
-        correct = extracted == correct_answer
+        extracted, correct = grade(answer, row["answer"])
+        correct_answer = str(int(row["answer"]))
         return {
             "problem_id":       row.get("id", ""),
             "question":         row["problem"],
@@ -36,5 +41,5 @@ class AIME24Benchmark(Benchmark):
         return {
             "problem_id":     row.get("id", ""),
             "question":       row["problem"],
-            "correct_answer": str(row["answer"]),
+            "correct_answer": str(int(row["answer"])),
         }

@@ -168,6 +168,58 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
+  llm_7:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_7:-7}
+    environment:
+      - CUDA_VISIBLE_DEVICES=${GPU_IDS_7:-7}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - _LOCAL_MODEL=${LOCAL_MODEL_7:-}
+      - _REPO=${MODEL_7:-}
+      - _FILE=${WEIGHTS_7:-}
+      - _CTX=${CTX_SIZE:-32768}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./models:/app/models
+    ports:
+      - "127.0.0.1:${PORT_7:-20007}:8080"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  llm_8:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: ${USER}_llm_GPU_${GPU_LABEL_8:-8}
+    environment:
+      - CUDA_VISIBLE_DEVICES=${GPU_IDS_8:-8}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - _LOCAL_MODEL=${LOCAL_MODEL_8:-}
+      - _REPO=${MODEL_8:-}
+      - _FILE=${WEIGHTS_8:-}
+      - _CTX=${CTX_SIZE:-32768}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./models:/app/models
+    ports:
+      - "127.0.0.1:${PORT_8:-20008}:8080"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['if [ -n "$$_LOCAL_MODEL" ]; then /app/llama-server --model "$$_LOCAL_MODEL" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; else /app/llama-server --hf-repo "$$_REPO" --hf-file "$$_FILE" -ngl 999 --flash-attn auto --no-mmproj -ub 512 --ctx-size "$$_CTX" --host 0.0.0.0 --alias "$$_REPO" --reasoning-format deepseek-legacy; fi']
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    restart: unless-stopped
+
   # ---------------------------------------------------------------------------
   # Eval runner — used by start_eval.sh via `docker compose run eval`.
   # ---------------------------------------------------------------------------

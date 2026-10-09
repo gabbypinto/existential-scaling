@@ -7,6 +7,9 @@ context_window: 32768
 
 enable_thinking: true
 thinking_budget: 15000
+# true: stop thinking at thinking_budget, force </think>, then answer with up to
+# max_output_tokens. false: one request with max_tokens = thinking_budget + max_output_tokens.
+enforce_thinking_budget: true
 max_output_tokens: 10000
 
 thinking_temp: 0.0

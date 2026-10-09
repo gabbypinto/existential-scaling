@@ -100,7 +100,8 @@ for SLOT in "${SLOTS[@]}"; do
   if [[ -z "$PORT"  ]]; then echo "WARNING: PORT_${SLOT} not set, skipping";  continue; fi
 
   MODEL_SHORT=$(echo "$MODEL" | cut -d/ -f2 | tr '[:upper:]' '[:lower:]')
-  SCREEN_NAME=$(_session_name "$MODEL")
+  # slot suffix: the same model can run on several slots (e.g. different benchmarks on different GPUs)
+  SCREEN_NAME="$(_session_name "$MODEL")_s${SLOT}"
   SLOT_SCRIPT="/tmp/sweep_slot_${SLOT}_${PARENT_PID}.sh"
   DONE_FILE="/tmp/sweep_slot_${SLOT}_${PARENT_PID}.done"
 
