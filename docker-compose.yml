@@ -221,6 +221,42 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
+  # vLLM server — opt-in (profile "vllm"), started by scripts/run_vllm_sweep.sh.
+  # Serves HF safetensors (not GGUF). Configure via .env: VLLM_MODEL, VLLM_PORT,
+  # VLLM_GPU_IDS, VLLM_GPU_LABEL, VLLM_GPU_MEM_UTIL; the launcher sets
+  # VLLM_MAX_NUM_SEQS and the reasoning parser in VLLM_EXTRA_ARGS.
+  # --generation-config vllm: ignore the model's generation_config.json defaults so
+  # sampling matches the llama.cpp runs. No --enforce-eager (it disables CUDA graphs).
+  # ---------------------------------------------------------------------------
+
+  vllm:
+    profiles: ["vllm"]
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.31.0}
+    container_name: ${USER}_vllm_GPU_${VLLM_GPU_LABEL:-0}
+    environment:
+      - CUDA_VISIBLE_DEVICES=${VLLM_GPU_IDS:-0}
+      - HF_TOKEN=${HF_TOKEN}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:${VLLM_PORT:-20100}:8000"
+    command: >-
+      ${VLLM_MODEL:-unset-VLLM_MODEL} --served-model-name ${VLLM_MODEL:-unset-VLLM_MODEL}
+      --max-model-len ${CTX_SIZE:-32768}
+      --gpu-memory-utilization ${VLLM_GPU_MEM_UTIL:-0.8}
+      --max-num-seqs ${VLLM_MAX_NUM_SEQS:-32}
+      --generation-config vllm
+      ${VLLM_EXTRA_ARGS:-}
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
   # Eval runner — used by start_eval.sh via `docker compose run eval`.
   # ---------------------------------------------------------------------------
 

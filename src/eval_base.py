@@ -17,10 +17,52 @@ except ImportError:
 THINK_OPEN = "<think>"
 THINK_CLOSE = "</think>"
 
+# llama.cpp's server default. The eval never sends min_p, so llama.cpp runs sample
+# with 0.05; vLLM requests send it explicitly so both engines sample the same way.
+LLAMACPP_DEFAULT_MIN_P = 0.05
+
+_print_lock = threading.Lock()
+_engine_cache: dict[int, str] = {}
+_engine_lock = threading.Lock()
+
 
 def load_config(path: str) -> dict:
     with open(path) as f:
         return yaml.safe_load(f)
+
+
+def log(*args) -> None:
+    """print() that keeps lines from concurrent requests from interleaving."""
+    with _print_lock:
+        print(*args, flush=True)
+
+
+def detect_engine(cfg: dict) -> str:
+    """'vllm' or 'llamacpp': cfg/ENGINE override, else the server's /v1/models owned_by."""
+    engine = cfg.get("engine") or os.environ.get("ENGINE")
+    if engine:
+        return engine
+    port = cfg["port"]
+    with _engine_lock:
+        if port not in _engine_cache:
+            engine = "llamacpp"
+            try:
+                r = requests.get(f"http://localhost:{port}/v1/models", timeout=10)
+                models = r.json().get("data", [])
+                if models and models[0].get("owned_by") == "vllm":
+                    engine = "vllm"
+            except Exception:
+                pass
+            _engine_cache[port] = engine
+        return _engine_cache[port]
+
+
+def budget_enforced(cfg: dict) -> bool:
+    return bool(
+        cfg.get("enable_thinking", False)
+        and cfg.get("thinking_budget", 0) > 0
+        and cfg.get("enforce_thinking_budget", True)
+    )
 
 
 def _vram_monitor(stop_event: threading.Event, peak_mb: list) -> None:
@@ -43,12 +85,17 @@ def build_prompt(problem: str, cfg: dict) -> str:
     return "\n\n".join(parts)
 
 
-def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
+def query(problem: str, cfg: dict, temperature: float, quiet: bool = False) -> tuple[str, str, dict]:
+    """Send one problem and stream the reply. quiet=True prints nothing (concurrent runs)."""
     url = f"http://localhost:{cfg['port']}/v1/chat/completions"
-    enable_thinking = cfg.get("enable_thinking", False)
     thinking_budget = cfg.get("thinking_budget", 0)
     max_output_tokens = cfg.get("max_output_tokens", 2048)
     timeout = cfg.get("request_timeout", 600)
+    engine = detect_engine(cfg)
+
+    def say(*args, **kwargs):
+        if not quiet:
+            print(*args, **kwargs)
 
     prompt = build_prompt(problem, cfg)
 
@@ -60,23 +107,32 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
 
     context_window = cfg.get("context_window", 32768)
 
-    # Enforced budget: phase 1 may only think for thinking_budget tokens; if it
-    # runs out, _force_answer() closes </think> and generates the answer with
-    # up to max_output_tokens. Otherwise one request shares the whole budget.
-    enforce_budget = (
-        enable_thinking
-        and thinking_budget > 0
-        and cfg.get("enforce_thinking_budget", True)
-    )
-    max_tokens = thinking_budget if enforce_budget else thinking_budget + max_output_tokens
+    # Enforced budget, llama.cpp: phase 1 may only think for thinking_budget tokens;
+    # if it runs out, _force_answer() closes </think> and generates the answer with
+    # up to max_output_tokens. vLLM does the same server-side via thinking_token_budget.
+    # Not enforced: one request shares the whole budget.
+    enforce_budget = budget_enforced(cfg)
+    two_phase = enforce_budget and engine != "vllm"
+    max_tokens = thinking_budget if two_phase else thinking_budget + max_output_tokens
 
-    sampling = {
-        "temperature": temperature,
-        "top_p": cfg.get("top_p", 1.0),
-        "top_k": cfg.get("top_k", 0),  # llama.cpp: 0 = disabled
-        "presence_penalty": cfg.get("presence_penalty", 0.0),
-        "repetition_penalty": cfg.get("repetition_penalty", 1.0),
-    }
+    if engine == "vllm":
+        # Mirror what llama.cpp applies: its min_p default, and no repetition_penalty
+        # (llama.cpp only reads repeat_penalty, so the one we send has no effect there).
+        sampling = {
+            "temperature": temperature,
+            "top_p": cfg.get("top_p", 1.0),
+            "top_k": cfg.get("top_k", 0),
+            "presence_penalty": cfg.get("presence_penalty", 0.0),
+            "min_p": LLAMACPP_DEFAULT_MIN_P,
+        }
+    else:
+        sampling = {
+            "temperature": temperature,
+            "top_p": cfg.get("top_p", 1.0),
+            "top_k": cfg.get("top_k", 0),  # llama.cpp: 0 = disabled
+            "presence_penalty": cfg.get("presence_penalty", 0.0),
+            "repetition_penalty": cfg.get("repetition_penalty", 1.0),
+        }
     payload = {
         "model": cfg["model"],
         "messages": messages,
@@ -85,10 +141,12 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
         "stream": True,
         "stream_options": {"include_usage": True},
     }
+    if engine == "vllm" and enforce_budget:
+        payload["thinking_token_budget"] = thinking_budget
 
     peak_mb: list[float] = [0.0]
     stop_event = threading.Event()
-    if NVML_AVAILABLE:
+    if NVML_AVAILABLE and not quiet:
         threading.Thread(target=_vram_monitor, args=(stop_event, peak_mb), daemon=True).start()
 
     thinking = ""
@@ -110,9 +168,10 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
         while not first_token_event.wait(timeout=10):
             t += 10
             print(f"  [prefill: {t}s elapsed...]", flush=True)
-    threading.Thread(target=_prefill_heartbeat, daemon=True).start()
+    if not quiet:
+        threading.Thread(target=_prefill_heartbeat, daemon=True).start()
 
-    print("  Querying model...", flush=True)
+    say("  Querying model...", flush=True)
     t_request_start = time.time()
 
     with requests.post(url, json=payload, stream=True, timeout=timeout) as resp:
@@ -135,28 +194,29 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
             if choices[0].get("finish_reason"):
                 finish_reason = choices[0]["finish_reason"]
             delta = choices[0].get("delta", {})
-            reasoning_token = delta.get("reasoning_content") or ""
+            # vLLM calls the field "reasoning" (formerly "reasoning_content", as llama.cpp does)
+            reasoning_token = delta.get("reasoning") or delta.get("reasoning_content") or ""
             token = delta.get("content") or ""
 
-            # Primary path: llama.cpp --reasoning-format deepseek-legacy sends
-            # thinking in reasoning_content (separate from content).
+            # Primary path: the server separates thinking from the answer
+            # (llama.cpp --reasoning-format deepseek-legacy, vLLM --reasoning-parser).
             if reasoning_token:
                 seen_reasoning_content = True
                 if not first_token_event.is_set():
                     first_token_event.set()
                     ttft = time.time() - t_request_start
-                    print(f"  First token: {ttft:.1f}s", flush=True)
+                    say(f"  First token: {ttft:.1f}s", flush=True)
                 if not showed_think_header:
-                    print("------- THINKING --------", flush=True)
+                    say("------- THINKING --------", flush=True)
                     showed_think_header = True
                 thinking += reasoning_token
-                print(reasoning_token, end="", flush=True)
+                say(reasoning_token, end="", flush=True)
 
             if token:
                 if not first_token_event.is_set():
                     first_token_event.set()
                     ttft = time.time() - t_request_start
-                    print(f"  First token: {ttft:.1f}s", flush=True)
+                    say(f"  First token: {ttft:.1f}s", flush=True)
                 # deepseek-legacy also echoes <think> tags in content — strip
                 # them to avoid double-counting when reasoning_content is active.
                 if seen_reasoning_content:
@@ -178,7 +238,7 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
                         buf = buf[idx_close + len(THINK_CLOSE):]
                         in_think = False
                         showed_think_header = True
-                        print("\n------- END THINKING ----\n", flush=True)
+                        say("\n------- END THINKING ----\n", flush=True)
                         continue
 
                     idx = idx_open
@@ -188,25 +248,25 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
                         if chunk_text:
                             if not showed_resp_header:
                                 if showed_think_header:
-                                    print("\n------- END THINKING ----\n")
-                                print("------- RESPONSE --------")
+                                    say("\n------- END THINKING ----\n")
+                                say("------- RESPONSE --------")
                                 showed_resp_header = True
                             answer += chunk_text
-                            print(chunk_text, end="", flush=True)
+                            say(chunk_text, end="", flush=True)
                         buf = buf[safe_len:]
                         break
                     else:
                         pre = buf[:idx]
                         if pre:
                             if not showed_resp_header:
-                                print("------- RESPONSE --------")
+                                say("------- RESPONSE --------")
                                 showed_resp_header = True
                             answer += pre
-                            print(pre, end="", flush=True)
+                            say(pre, end="", flush=True)
                         buf = buf[idx + len(THINK_OPEN):]
                         in_think = True
                         if not showed_think_header:
-                            print("------- THINKING --------")
+                            say("------- THINKING --------")
                             showed_think_header = True
                 else:
                     idx = buf.find(THINK_CLOSE)
@@ -215,13 +275,13 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
                         chunk_text = buf[:safe_len]
                         if chunk_text:
                             thinking += chunk_text
-                            print(chunk_text, end="", flush=True)
+                            say(chunk_text, end="", flush=True)
                         buf = buf[safe_len:]
                         break
                     else:
                         chunk_text = buf[:idx]
                         thinking += chunk_text
-                        print(chunk_text, end="", flush=True)
+                        say(chunk_text, end="", flush=True)
                         buf = buf[idx + len(THINK_CLOSE):]
                         in_think = False
 
@@ -230,17 +290,17 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
     # cut off mid-thought: the held-back tail belongs to the thinking, not the answer
     if in_think and buf:
         thinking += buf
-        print(buf, end="", flush=True)
+        say(buf, end="", flush=True)
         buf = ""
 
     if buf:
         if not showed_resp_header:
             if showed_think_header:
-                print("\n------- END THINKING ----\n")
-            print("------- RESPONSE --------")
+                say("\n------- END THINKING ----\n")
+            say("------- RESPONSE --------")
             showed_resp_header = True
         answer += buf
-        print(buf, end="", flush=True)
+        say(buf, end="", flush=True)
 
     completion_tokens = usage.get("completion_tokens")
     prompt_ms = timings.get("prompt_ms")
@@ -248,15 +308,15 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
     tokens_per_sec_llama = timings.get("predicted_per_second")
     budget_forced = False
 
-    if enforce_budget and finish_reason == "length":
+    if two_phase and finish_reason == "length":
         still_thinking = in_think or not answer.strip()
         if still_thinking:
             budget_forced = True
-            print("\n------- END THINKING (budget reached, forcing answer) ----\n", flush=True)
-            print("------- RESPONSE --------", flush=True)
+            say("\n------- END THINKING (budget reached, forcing answer) ----\n", flush=True)
+            say("------- RESPONSE --------", flush=True)
             showed_resp_header = True
         extra, final = _force_answer(
-            cfg, messages, sampling, thinking, answer, max_output_tokens, timeout,
+            cfg, messages, sampling, thinking, answer, max_output_tokens, timeout, quiet,
         )
         answer += extra
         if final:
@@ -269,21 +329,36 @@ def query(problem: str, cfg: dict, temperature: float) -> tuple[str, str, dict]:
                 round(completion_tokens / (generation_ms / 1000), 2) if generation_ms else None
             )
 
+    t_end = time.time()
     if showed_resp_header:
-        print("\n------- END RESPONSE ----")
-    print()
+        say("\n------- END RESPONSE ----")
+    say()
 
     stop_event.set()
 
+    # Client-side timing, for both engines (vLLM sends no timings): decode speed
+    # from first token to end of stream, and the server-side fields as a fallback.
+    decode_s = t_end - t_request_start - ttft if ttft is not None else None
+    decode_tok_s = (
+        round((completion_tokens - 1) / decode_s, 2)
+        if decode_s and decode_s > 0 and completion_tokens and completion_tokens > 1 else None
+    )
+    if prompt_ms is None and ttft is not None:
+        prompt_ms = round(ttft * 1000, 1)
+    if generation_ms is None and decode_s is not None:
+        generation_ms = round(decode_s * 1000, 1)
+
     prompt_tokens = usage.get("prompt_tokens")
     metrics = {
+        "engine":               engine,
         "prompt_tokens":        prompt_tokens,
         "completion_tokens":    completion_tokens,
         "total_tokens":         (prompt_tokens or 0) + (completion_tokens or 0) if usage else None,
-        "peak_vram_mb":         round(peak_mb[0], 1) if NVML_AVAILABLE else None,
+        "peak_vram_mb":         round(peak_mb[0], 1) if NVML_AVAILABLE and not quiet else None,
         "prompt_ms":            prompt_ms,
         "generation_ms":        generation_ms,
         "tokens_per_sec_llama": tokens_per_sec_llama,
+        "decode_tok_s":         decode_tok_s,
         "ttft_s":               round(ttft, 2) if ttft is not None else None,
         "finish_reason":        finish_reason,
         "budget_forced":        budget_forced,
@@ -299,8 +374,9 @@ def _force_answer(
     answer: str,
     max_output_tokens: int,
     timeout: int,
+    quiet: bool = False,
 ) -> tuple[str, dict]:
-    """Phase 2 of an enforced thinking budget: continue from a raw prompt.
+    """Phase 2 of an enforced thinking budget on llama.cpp: continue from a raw prompt.
 
     Closes the thinking with a bare </think> (no injected instruction text) and
     continues the answer, empty if the model was still thinking, with whatever
@@ -340,7 +416,8 @@ def _force_answer(
             token = chunk.get("content") or ""
             if token:
                 text += token
-                print(token, end="", flush=True)
+                if not quiet:
+                    print(token, end="", flush=True)
             if chunk.get("stop"):
                 final = chunk
     return text, final
@@ -387,31 +464,151 @@ def accuracy_metrics(per_question: dict) -> dict:
     }
 
 
-def count_tokens(text: str, port: int) -> int | None:
+def count_tokens(text: str, port: int, engine: str = "llamacpp", model: str | None = None) -> int | None:
     if not text:
         return 0
     try:
-        r = requests.post(
-            f"http://localhost:{port}/tokenize",
-            json={"content": text},
-            timeout=10,
-        )
+        if engine == "vllm":
+            payload = {"model": model, "prompt": text, "add_special_tokens": False}
+        else:
+            payload = {"content": text}
+        r = requests.post(f"http://localhost:{port}/tokenize", json=payload, timeout=10)
         r.raise_for_status()
-        return len(r.json()["tokens"])
+        data = r.json()
+        return data["count"] if "count" in data else len(data["tokens"])
     except Exception:
         return None
 
 
-def run_eval(benchmark, cfg: dict) -> None:
+def resolve_model_port(cfg: dict) -> None:
+    """Fill cfg model/port from the MODEL/PORT env vars when the yaml doesn't set them."""
     if "model" not in cfg:
         cfg["model"] = os.environ.get("MODEL", "")
     if "port" not in cfg:
-        cfg["port"] = int(os.environ.get("PORT", ""))
+        cfg["port"] = int(os.environ.get("PORT", "0") or 0)
 
     if not cfg.get("model"):
         raise ValueError("model not set — add to model.yaml or set MODEL env var")
     if not cfg.get("port"):
         raise ValueError("port not set — add to model.yaml or set PORT env var")
+
+
+def sampling_temperature(cfg: dict) -> float:
+    return (
+        cfg.get("thinking_temp", 0.6)
+        if cfg.get("enable_thinking", False)
+        else cfg.get("nonthinking_temp", 0.0)
+    )
+
+
+def make_config_block(cfg: dict, temperature: float, num_rounds: int, log_dir: str) -> dict:
+    """The "config" block written to every round file and summary.json."""
+    engine = detect_engine(cfg)
+    return {
+        "model":             cfg["model"],
+        "port":              cfg["port"],
+        "benchmark":         cfg.get("benchmark", "eval"),
+        "engine":            engine,
+        "concurrency":       cfg.get("concurrency", 1),
+        "context_window":    cfg.get("context_window"),
+        "enable_thinking":   cfg.get("enable_thinking", False),
+        "temperature":       temperature,
+        "thinking_budget":   cfg.get("thinking_budget"),
+        "enforce_thinking_budget": cfg.get("enforce_thinking_budget", True),
+        "max_output_tokens": cfg.get("max_output_tokens"),
+        "top_p":             cfg.get("top_p"),
+        "top_k":             cfg.get("top_k"),
+        "min_p":             LLAMACPP_DEFAULT_MIN_P,  # llama.cpp default; sent explicitly to vLLM
+        "presence_penalty":  cfg.get("presence_penalty"),
+        "repetition_penalty": cfg.get("repetition_penalty"),  # not applied by either engine
+        "num_rounds":        num_rounds,
+        "log_dir":           log_dir,
+        "pre_prompt":        cfg.get("pre_prompt", "").strip(),
+        "post_prompt":       cfg.get("post_prompt", "").strip(),
+        "prompt_key":        cfg.get("prompt_key", ""),
+        "system_prompt": cfg.get("system_prompt", ""),
+    }
+
+
+def run_one(benchmark, row: dict, cfg: dict, temperature: float, quiet: bool = False) -> dict:
+    """Query one problem once and return its graded result dict (one round entry)."""
+    t0 = time.time()
+    thinking, answer, metrics = query(benchmark.get_question_text(row), cfg, temperature, quiet=quiet)
+    elapsed = time.time() - t0
+
+    completion_tokens = metrics.get("completion_tokens") or 0
+    tokens_per_sec = round(completion_tokens / elapsed, 2) if elapsed > 0 and completion_tokens else None
+    metrics["tokens_per_sec"] = tokens_per_sec
+
+    engine = metrics.get("engine", "llamacpp")
+    thinking_tokens = count_tokens(thinking, cfg["port"], engine, cfg["model"])
+    if engine == "vllm" and budget_enforced(cfg) and thinking_tokens is not None:
+        # vLLM ends the thinking itself and doesn't report it; infer from the length
+        metrics["budget_forced"] = thinking_tokens >= cfg.get("thinking_budget", 0) - 5
+
+    result = benchmark.build_result(row, thinking, answer, metrics, elapsed)
+    result["elapsed_s"]            = round(elapsed, 2)
+    result["tokens_per_sec"]       = tokens_per_sec
+    result["prompt_tokens"]        = metrics.get("prompt_tokens")
+    result["completion_tokens"]    = metrics.get("completion_tokens")
+    result["total_tokens"]         = metrics.get("total_tokens")
+    result["peak_vram_mb"]         = metrics.get("peak_vram_mb")
+    result["thinking_tokens"]      = thinking_tokens
+    result["prompt_ms"]            = metrics.get("prompt_ms")
+    result["generation_ms"]        = metrics.get("generation_ms")
+    result["tokens_per_sec_llama"] = metrics.get("tokens_per_sec_llama")
+    result["decode_tok_s"]         = metrics.get("decode_tok_s")
+    result["finish_reason"]        = metrics.get("finish_reason")
+    result["budget_forced"]        = metrics.get("budget_forced")
+
+    if not quiet:
+        correct = result.get("correct", result.get("passed_all_tests", False))
+        print(f"\n({elapsed:.1f}s | {tokens_per_sec} tok/s | {'PASS' if correct else 'FAIL'} | peak VRAM {metrics.get('peak_vram_mb')} MB)\n")
+    return result
+
+
+def is_correct(result: dict) -> bool:
+    return bool(result.get("correct", result.get("passed_all_tests", False)))
+
+
+def build_summary(benchmark, problems: list, all_results: dict, config_block: dict, total_elapsed_s: float) -> dict:
+    """summary.json contents. all_results maps question idx (1-based) -> {round: result}."""
+    per_question = {}
+    for idx in range(1, len(problems) + 1):
+        trials = all_results[idx]
+        passing_rounds = sorted(r for r, res in trials.items() if is_correct(res))
+        entry = benchmark.build_summary_entry(problems[idx - 1], passing_rounds)
+        entry.update(question_pass_fields(passing_rounds, len(trials)))
+        per_question[f"question_{idx}"] = entry
+
+    acc = accuracy_metrics(per_question)
+
+    all_trials = [res for trials in all_results.values() for res in trials.values()]
+
+    return {
+        "config":                    config_block,
+        **acc,
+        "pct_budget_forced":         _pct("budget_forced", all_trials),
+        "pct_truncated":             _pct("finish_reason", all_trials, "length"),
+        "total_elapsed_s":           round(total_elapsed_s, 1),
+        "total_elapsed_h":           round(total_elapsed_s / 3600, 4),
+        "avg_elapsed_s":             _avg("elapsed_s", all_trials),
+        "avg_prompt_tokens":         _avg("prompt_tokens", all_trials),
+        "avg_completion_tokens":     _avg("completion_tokens", all_trials),
+        "avg_total_tokens":          _avg("total_tokens", all_trials),
+        "avg_tokens_per_sec":        _avg("tokens_per_sec", all_trials),
+        "avg_tokens_per_sec_llama":  _avg("tokens_per_sec_llama", all_trials),
+        "avg_decode_tok_s":          _avg("decode_tok_s", all_trials),
+        "avg_thinking_tokens":       _avg("thinking_tokens", all_trials),
+        "avg_prompt_ms":             _avg("prompt_ms", all_trials),
+        "avg_generation_ms":         _avg("generation_ms", all_trials),
+        "avg_peak_vram_mb":          _avg("peak_vram_mb", all_trials),
+        "per_question":              per_question,
+    }
+
+
+def run_eval(benchmark, cfg: dict) -> None:
+    resolve_model_port(cfg)
 
     benchmark_name = cfg.get("benchmark", "eval")
     model_name = cfg["model"]
@@ -422,11 +619,7 @@ def run_eval(benchmark, cfg: dict) -> None:
     log_path.mkdir(parents=True, exist_ok=True)
 
     num_rounds = cfg.get("num_rounds", 1)
-    temperature = (
-        cfg.get("thinking_temp", 0.6)
-        if cfg.get("enable_thinking", False)
-        else cfg.get("nonthinking_temp", 0.0)
-    )
+    temperature = sampling_temperature(cfg)
 
     print(f"Benchmark: {benchmark_name}", flush=True)
     print(f"Model: {cfg['model']}", flush=True)
@@ -441,27 +634,7 @@ def run_eval(benchmark, cfg: dict) -> None:
 
     print(f"Loaded {len(problems)} problems.\n", flush=True)
 
-    config_block = {
-        "model":             cfg["model"],
-        "port":              cfg["port"],
-        "benchmark":         benchmark_name,
-        "context_window":    cfg.get("context_window"),
-        "enable_thinking":   cfg.get("enable_thinking", False),
-        "temperature":       temperature,
-        "thinking_budget":   cfg.get("thinking_budget"),
-        "enforce_thinking_budget": cfg.get("enforce_thinking_budget", True),
-        "max_output_tokens": cfg.get("max_output_tokens"),
-        "top_p":             cfg.get("top_p"),
-        "top_k":             cfg.get("top_k"),
-        "presence_penalty":  cfg.get("presence_penalty"),
-        "repetition_penalty": cfg.get("repetition_penalty"),
-        "num_rounds":        num_rounds,
-        "log_dir":           log_dir,
-        "pre_prompt":        cfg.get("pre_prompt", "").strip(),
-        "post_prompt":       cfg.get("post_prompt", "").strip(),
-        "prompt_key":        cfg.get("prompt_key", ""),
-        "system_prompt": cfg.get("system_prompt", ""),
-    }
+    config_block = make_config_block(cfg, temperature, num_rounds, log_dir)
 
     all_results: dict[int, dict] = {idx: {} for idx in range(1, len(problems) + 1)}
     total_elapsed_s = 0.0
@@ -478,30 +651,7 @@ def run_eval(benchmark, cfg: dict) -> None:
             label = benchmark.get_label(row)
             print(f"[Round {rnd} | {idx:02d}/{len(problems)}] {label}\n")
 
-            t0 = time.time()
-            thinking, answer, metrics = query(benchmark.get_question_text(row), cfg, temperature)
-            elapsed = time.time() - t0
-
-            completion_tokens = metrics.get("completion_tokens") or 0
-            tokens_per_sec = round(completion_tokens / elapsed, 2) if elapsed > 0 and completion_tokens else None
-            metrics["tokens_per_sec"] = tokens_per_sec
-
-            result = benchmark.build_result(row, thinking, answer, metrics, elapsed)
-            result["elapsed_s"]            = round(elapsed, 2)
-            result["tokens_per_sec"]       = tokens_per_sec
-            result["prompt_tokens"]        = metrics.get("prompt_tokens")
-            result["completion_tokens"]    = metrics.get("completion_tokens")
-            result["total_tokens"]         = metrics.get("total_tokens")
-            result["peak_vram_mb"]         = metrics.get("peak_vram_mb")
-            result["thinking_tokens"]      = count_tokens(thinking, cfg["port"])
-            result["prompt_ms"]            = metrics.get("prompt_ms")
-            result["generation_ms"]        = metrics.get("generation_ms")
-            result["tokens_per_sec_llama"] = metrics.get("tokens_per_sec_llama")
-            result["finish_reason"]        = metrics.get("finish_reason")
-            result["budget_forced"]        = metrics.get("budget_forced")
-
-            correct = result.get("correct", result.get("passed_all_tests", False))
-            print(f"\n({elapsed:.1f}s | {tokens_per_sec} tok/s | {'PASS' if correct else 'FAIL'} | peak VRAM {metrics.get('peak_vram_mb')} MB)\n")
+            result = run_one(benchmark, row, cfg, temperature)
 
             round_results[f"question_{idx}"] = result
             all_results[idx][rnd] = result
@@ -519,46 +669,13 @@ def run_eval(benchmark, cfg: dict) -> None:
 
         print(f"Round {rnd} complete ({rnd_elapsed_h:.3f}h) -> {round_file}")
 
-    per_question = {}
-    for idx in range(1, len(problems) + 1):
-        trials = all_results[idx]
-        passing_rounds = [
-            r for r, res in trials.items()
-            if res.get("correct", res.get("passed_all_tests", False))
-        ]
-        entry = benchmark.build_summary_entry(problems[idx - 1], passing_rounds)
-        entry.update(question_pass_fields(passing_rounds, len(trials)))
-        per_question[f"question_{idx}"] = entry
-
-    acc = accuracy_metrics(per_question)
-
-    all_trials = [res for trials in all_results.values() for res in trials.values()]
-
-    summary = {
-        "config":                    config_block,
-        **acc,
-        "pct_budget_forced":         _pct("budget_forced", all_trials),
-        "pct_truncated":             _pct("finish_reason", all_trials, "length"),
-        "total_elapsed_s":           round(total_elapsed_s, 1),
-        "total_elapsed_h":           round(total_elapsed_s / 3600, 4),
-        "avg_elapsed_s":             _avg("elapsed_s", all_trials),
-        "avg_prompt_tokens":         _avg("prompt_tokens", all_trials),
-        "avg_completion_tokens":     _avg("completion_tokens", all_trials),
-        "avg_total_tokens":          _avg("total_tokens", all_trials),
-        "avg_tokens_per_sec":        _avg("tokens_per_sec", all_trials),
-        "avg_tokens_per_sec_llama":  _avg("tokens_per_sec_llama", all_trials),
-        "avg_thinking_tokens":       _avg("thinking_tokens", all_trials),
-        "avg_prompt_ms":             _avg("prompt_ms", all_trials),
-        "avg_generation_ms":         _avg("generation_ms", all_trials),
-        "avg_peak_vram_mb":          _avg("peak_vram_mb", all_trials),
-        "per_question":              per_question,
-    }
+    summary = build_summary(benchmark, problems, all_results, config_block, total_elapsed_s)
 
     summary_file = log_path / "summary.json"
     summary_file.write_text(json.dumps(summary, indent=2, ensure_ascii=False))
 
     print(f"\nDone!")
-    print(f"Pass@1 (mean over {num_rounds} rounds): {acc['overall_pass_at_1']:.1%}")
-    print(f"Pass@{num_rounds} (any round): {acc['questions_passed']}/{len(problems)} = {acc['overall_pass_at_k']:.1%}")
+    print(f"Pass@1 (mean over {num_rounds} rounds): {summary['overall_pass_at_1']:.1%}")
+    print(f"Pass@{num_rounds} (any round): {summary['questions_passed']}/{len(problems)} = {summary['overall_pass_at_k']:.1%}")
     print(f"Total time: {total_elapsed_s/3600:.3f}h")
     print(f"Summary saved -> {summary_file}")
