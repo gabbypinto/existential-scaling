@@ -1,0 +1,20 @@
+# model name and port come from .env (MODEL_N / PORT_N)
+
+context_window: 32768
+
+enable_thinking: false
+thinking_budget: 15000
+# true: stop thinking at thinking_budget, force </think>, then answer with up to
+# max_output_tokens. false: one request with max_tokens = thinking_budget + max_output_tokens.
+enforce_thinking_budget: true
+max_output_tokens: 10000
+
+thinking_temp: 0.6
+nonthinking_temp: 0.6
+top_p: 0.95
+top_k: 20
+presence_penalty: 1.5
+repetition_penalty: 1.0
+
+
+# temp 0.0 for math 

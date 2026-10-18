@@ -22,6 +22,7 @@
 # --client-image  image that runs `vllm bench serve`                 (default: $VLLM_IMAGE_DEFAULT)
 # --port          host port for the benchmark server                 (default: 20010)
 # --gpu-mem       vLLM --gpu-memory-utilization (share of unified memory) (default: 0.8)
+# --server-args   extra server flags, e.g. "--language-model-only"   (default: none)
 # --timeout       seconds to wait for the server to become healthy   (default: 1800)
 # --env-file      env file to read HF_TOKEN from                     (default: .env)
 # --force         don't ask before running alongside other llm containers
@@ -50,6 +51,7 @@ IMAGE=""
 CLIENT_IMAGE="$VLLM_IMAGE_DEFAULT"
 PORT=20010
 GPU_MEM=0.8
+SERVER_ARGS=""
 TIMEOUT=1800
 ENV_FILE="$PROJECT_ROOT/.env"
 FORCE=false
@@ -69,6 +71,7 @@ while [[ $# -gt 0 ]]; do
     --client-image) CLIENT_IMAGE="$2"; shift 2 ;;
     --port)         PORT="$2";         shift 2 ;;
     --gpu-mem)      GPU_MEM="$2";      shift 2 ;;
+    --server-args)  SERVER_ARGS="$2";  shift 2 ;;
     --timeout)      TIMEOUT="$2";      shift 2 ;;
     --env-file)     ENV_FILE="$2";     shift 2 ;;
     --force)        FORCE=true;        shift   ;;
@@ -102,6 +105,7 @@ IFS=',' read -ra LEVELS <<< "$CONC"
 MAXCONC=0
 for c in "${LEVELS[@]}"; do (( c > MAXCONC )) && MAXCONC=$c; done
 SEQ_LEN=$((IN_LEN + OUT_LEN + 256))   # per-request context, with headroom
+read -ra EXTRA_SERVER_ARGS <<< "$SERVER_ARGS"
 
 _env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]' || true; }
 HF_TOKEN="${HF_TOKEN:-$(_env_val HF_TOKEN)}"
@@ -125,6 +129,7 @@ echo "  Engine     : $ENGINE ($IMAGE)"
 echo "  Model      : ${MODEL:-$GGUF}"
 echo "  Tokenizer  : $TOKENIZER"
 echo "  Levels     : ${LEVELS[*]}  (in=$IN_LEN, out=$OUT_LEN)"
+[[ -n "$SERVER_ARGS" ]] && echo "  Server args: $SERVER_ARGS"
 echo "  Results    : ${RESULT_DIR#$PROJECT_ROOT/}"
 $DRY_RUN && echo "  DRY RUN — commands are printed, not run"
 echo "============================================"
@@ -132,7 +137,7 @@ echo ""
 
 # ---------- pre-flight: other servers share the unified memory and bandwidth ----------
 if ! $DRY_RUN; then
-  OTHERS=$(docker ps --format '{{.Names}}' | grep -E "^${USER}_(llm|bench)_" | grep -vx "$CONTAINER" || true)
+  OTHERS=$(docker ps --format '{{.Names}}' | grep -E "^${USER}_(llm|bench|vllm)_" | grep -vx "$CONTAINER" || true)
   if [[ -n "$OTHERS" ]] && ! $FORCE; then
     echo "WARNING: other model containers are running:"
     echo "$OTHERS" | sed 's/^/    /'
@@ -172,7 +177,8 @@ if [[ "$ENGINE" == "vllm" ]]; then
     serve "$MODEL" --served-model-name "$NAME" --port 8000
     --gpu-memory-utilization "$GPU_MEM"
     --max-model-len "$SEQ_LEN"
-    --max-num-seqs "$MAXCONC")
+    --max-num-seqs "$MAXCONC"
+    ${EXTRA_SERVER_ARGS[@]+"${EXTRA_SERVER_ARGS[@]}"})
 else
   # Same flags as the docker-compose llm_N slots, plus one slot per concurrent request
   SERVER_CMD=(docker run -d --name "$CONTAINER" --gpus all --ipc=host
@@ -181,7 +187,8 @@ else
     "$IMAGE"
     --model "/bench_models/$GGUF_BASE" -ngl 999 --flash-attn auto --no-mmproj
     -np "$MAXCONC" --ctx-size "$((MAXCONC * SEQ_LEN))"
-    --host 0.0.0.0 --port 8080 --alias "$NAME")
+    --host 0.0.0.0 --port 8080 --alias "$NAME"
+    ${EXTRA_SERVER_ARGS[@]+"${EXTRA_SERVER_ARGS[@]}"})
 fi
 run "${SERVER_CMD[@]}"
 
@@ -221,6 +228,7 @@ if ! $DRY_RUN; then
   "image": "$IMAGE",
   "input_len": $IN_LEN,
   "output_len": $OUT_LEN,
+  "server_args": "$SERVER_ARGS",
   "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF

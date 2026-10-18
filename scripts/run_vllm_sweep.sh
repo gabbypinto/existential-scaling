@@ -96,6 +96,9 @@ if [[ "$VLLM_REASONING_PARSER" == "auto" ]]; then
   lower="$(echo "$VLLM_MODEL" | tr '[:upper:]' '[:lower:]')"
   case "$lower" in
     *deepseek-r1*|*r1-distill*|*qwq*) PARSER="deepseek_r1" ;;
+    # Instruct models (e.g. Qwen3-4B-Instruct-2507) never think; the qwen3 parser
+    # would label their whole reply as reasoning and leave the answer empty
+    *qwen3*instruct*)                 PARSER="" ;;
     *qwen3*)                          PARSER="qwen3" ;;
     *gemma-4*|*gemma4*)               PARSER="gemma4" ;;
     *)                                PARSER="" ;;
