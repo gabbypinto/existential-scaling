@@ -22,8 +22,12 @@ Tests (aggregate mode):
   * Mean % token difference, reference vs each prompt.
   * Largest single-cell token gap (max / min prompt).
   * Pearson r between output tokens and accuracy across prompts, per cell.
-  * Optional pgfplots .dat files (tok_<bench>.dat, acc_<bench>.dat, tok_norm.dat)
-    in the format used by the Phase 1 figures.tex.
+  * The token tests above are repeated for thinking tokens (avg_thinking_tokens)
+    and answer tokens (output - thinking) when thinking data is available, plus
+    the mean thinking share (thinking / output) per prompt.
+  * Optional pgfplots .dat files (tok_<bench>.dat, acc_<bench>.dat, tok_norm.dat,
+    and think_<bench>.dat / think_norm.dat when available) in the format used by
+    the Phase 1 figures.tex.
 
 Tests (bullshit mode), per model:
   * mean score, clear-pushback rate (score 2), no-answer count per prompt
@@ -68,6 +72,9 @@ PROMPT_ORDER = [
     "Collapse",
 ]
 
+# older runs logged some prompts under a different directory name
+PROMPT_ALIASES = {"Predicted": "Predicted_Optimal"}
+
 
 # ----------------------------------------------------------------------------- helpers
 
@@ -75,7 +82,8 @@ def norm_prompt(name: str) -> str:
     name = str(name).strip()
     if name in ("", "default"):          # extract_metrics.py labels the no-prompt run "default"
         return "none"
-    return name.replace(" ", "_")
+    name = name.replace(" ", "_")
+    return PROMPT_ALIASES.get(name, name)
 
 
 def order_prompts(prompts) -> list[str]:
@@ -152,6 +160,7 @@ def load_metrics_json(path: Path, acc_key: str) -> pd.DataFrame:
                     "prompt": norm_prompt(prompt),
                     "accuracy": m.get(acc_key),
                     "tokens": m.get("avg_completion_tokens"),
+                    "thinking": m.get("avg_thinking_tokens"),
                 })
     return pd.DataFrame(rows)
 
@@ -161,18 +170,22 @@ def load_sheet_csv(path: Path) -> pd.DataFrame:
     df.columns = [c.strip() for c in df.columns]
     col = {c.lower(): c for c in df.columns}
 
-    def pick(*names):
+    def pick(*names, required=True):
         for n in names:
             if n in col:
                 return col[n]
+        if not required:
+            return None
         raise SystemExit(f"CSV {path} has no column like {names}; columns: {list(df.columns)}")
 
+    think_col = pick("avg thinking tokens", "avg_thinking_tokens", "thinking tokens", required=False)
     return pd.DataFrame({
         "model": df[pick("model")],
         "benchmark": df[pick("benchmark")],
         "prompt": df[pick("prompt")].map(norm_prompt),
         "accuracy": pd.to_numeric(df[pick("pass@1", "accuracy")], errors="coerce"),
         "tokens": pd.to_numeric(df[pick("avg output tokens", "avg_completion_tokens", "output tokens")], errors="coerce"),
+        "thinking": pd.to_numeric(df[think_col], errors="coerce") if think_col else np.nan,
     })
 
 
@@ -201,6 +214,8 @@ def run_aggregate(args) -> None:
     df = filter_rows(df, args).dropna(subset=["tokens"])
     if df.empty:
         raise SystemExit("no rows left after filtering")
+    df["thinking"] = pd.to_numeric(df["thinking"], errors="coerce")
+    df["answer"] = df.tokens - df.thinking
 
     prompts = order_prompts(set(df.prompt))
     tok = df.pivot_table(index=["model", "benchmark"], columns="prompt", values="tokens")
@@ -228,49 +243,77 @@ def run_aggregate(args) -> None:
         f = stats.friedmanchisquare(*[acc_ok[p].values for p in prompts])
         print(f"  accuracy      : chi2 = {f.statistic:6.2f}  p = {fmt_p(f.pvalue)}  (n = {len(acc_ok)})")
 
+    token_tests(tok_c, acc_ok, prompts, ref, "output tokens")
+
+    # same tests on thinking tokens and on the non-thinking part of the output
+    think_c = None
+    for col, label in (("thinking", "thinking tokens"), ("answer", "answer tokens (output - thinking)")):
+        mat = df.pivot_table(index=["model", "benchmark"], columns="prompt", values=col)
+        mat = mat.reindex(columns=prompts).dropna()
+        mat = mat[(mat != 0).any(axis=1)]          # drop cells from models that never think
+        print(f"\n######## {label}")
+        if len(mat) < 2:
+            print(f"  not available for >= 2 complete cells ({len(mat)} found), skipped")
+            continue
+        print(f"cells with every prompt: {len(mat)}")
+        f = stats.friedmanchisquare(*[mat[p].values for p in prompts])
+        print(f"\n== Friedman across prompts ==\n  {label} : chi2 = {f.statistic:6.2f}  p = {fmt_p(f.pvalue)}")
+        if col == "thinking":
+            think_c = mat
+            share = (mat / tok.loc[mat.index].replace(0, np.nan)).mean()
+            print("\n== mean thinking share (thinking / output) per prompt ==")
+            print("  " + "  ".join(f"{p} {100 * share[p]:.0f}%" for p in prompts))
+        token_tests(mat, acc.loc[mat.index].dropna(), prompts, ref, label)
+
+    if args.dat_dir:
+        write_dat(Path(args.dat_dir), tok_c, acc_c, prompts, think_c)
+
+
+def token_tests(mat: pd.DataFrame, acc_ok: pd.DataFrame, prompts: list[str], ref: str, label: str) -> None:
+    """Rank, reference-prompt, largest-gap and accuracy-correlation tests on one token metric."""
+    n = len(mat)
     print("\n== mean rank per prompt (1 = fewest tokens) ==")
-    ranks = tok_c.rank(axis=1).mean()
+    ranks = mat.rank(axis=1).mean()
     print("  " + "  ".join(f"{p} {ranks[p]:.2f}" for p in prompts))
 
     if ref in prompts:
         others = [p for p in prompts if p != ref]
-        below = int((tok_c[ref] < tok_c[prompts].mean(axis=1)).sum())
+        below = int((mat[ref] < mat[prompts].mean(axis=1)).sum())
         p_below = stats.binomtest(below, n, 0.5).pvalue
         print(f"\n== {ref} vs cell average ==")
         print(f"  {ref} below its cell's average in {below}/{n} cells  (sign test p = {fmt_p(p_below)})")
 
-        print(f"\n== {ref} vs each prompt, output tokens ({len(others)} comparisons, Holm-corrected) ==")
-        sg = [sign_test(tok_c[ref], tok_c[p]) for p in others]
-        wx = [wilcoxon_p(tok_c[ref], tok_c[p]) for p in others]
+        print(f"\n== {ref} vs each prompt, {label} ({len(others)} comparisons, Holm-corrected) ==")
+        sg = [sign_test(mat[ref], mat[p]) for p in others]
+        wx = [wilcoxon_p(mat[ref], mat[p]) for p in others]
         sg_h = holm([s[2] for s in sg])
         wx_h = holm(wx)
         print(f"  {'prompt':<18} {'%diff':>7} {ref+'<':>9} {'sign p':>7} {'Holm':>6} {'Wilcox p':>9} {'Holm':>6}")
         for p, s, sh, w, wh in zip(others, sg, sg_h, wx, wx_h):
-            pct = 100 * (tok_c[ref] / tok_c[p] - 1).mean()
+            pct = 100 * (mat[ref] / mat[p].replace(0, np.nan) - 1).mean()
             print(f"  {p:<18} {pct:>+6.0f}% {s[0]:>4}/{s[1]:<4} {fmt_p(s[2]):>7} {fmt_p(sh):>6} {fmt_p(w):>9} {fmt_p(wh):>6}")
     else:
         print(f"\n(reference prompt {ref!r} not present; skipping reference comparisons)")
 
-    ratio = tok_c.max(axis=1) / tok_c.min(axis=1)
-    cell = ratio.idxmax()
-    lo, hi = tok_c.loc[cell].idxmin(), tok_c.loc[cell].idxmax()
-    print("\n== largest single-cell gap ==")
-    print(f"  {cell[0]} / {cell[1]}: {lo} {tok_c.loc[cell, lo]:.0f} tokens vs {hi} {tok_c.loc[cell, hi]:.0f} ({ratio.max():.1f}x)")
+    ratio = mat.max(axis=1) / mat.min(axis=1).replace(0, np.nan)
+    if ratio.notna().any():
+        cell = ratio.idxmax()
+        lo, hi = mat.loc[cell].idxmin(), mat.loc[cell].idxmax()
+        print("\n== largest single-cell gap ==")
+        print(f"  {cell[0]} / {cell[1]}: {lo} {mat.loc[cell, lo]:.0f} tokens vs {hi} {mat.loc[cell, hi]:.0f} ({ratio.max():.1f}x)")
 
-    print("\n== Pearson r(output tokens, accuracy) across prompts, per cell ==")
+    print(f"\n== Pearson r({label}, accuracy) across prompts, per cell ==")
     for idx in acc_ok.index:
-        x, y = tok_c.loc[idx], acc_ok.loc[idx]
+        x, y = mat.loc[idx], acc_ok.loc[idx]
         if x.std() == 0 or y.std() == 0:
             print(f"  {idx[0]:<40} {idx[1]:<20}   n/a (no variance)")
             continue
         r = stats.pearsonr(x, y)
         print(f"  {idx[0]:<40} {idx[1]:<20} r = {r.statistic:+.2f}  p = {fmt_p(r.pvalue)}")
 
-    if args.dat_dir:
-        write_dat(Path(args.dat_dir), tok_c, acc_c, prompts)
 
-
-def write_dat(out: Path, tok: pd.DataFrame, acc: pd.DataFrame, prompts: list[str]) -> None:
+def write_dat(out: Path, tok: pd.DataFrame, acc: pd.DataFrame, prompts: list[str],
+              think: pd.DataFrame | None = None) -> None:
     """pgfplots tables: x = prompt index, one column per model (Base/Instruct/Reasoning)."""
     out.mkdir(parents=True, exist_ok=True)
     models = list(dict.fromkeys(tok.index.get_level_values(0)))
@@ -294,6 +337,11 @@ def write_dat(out: Path, tok: pd.DataFrame, acc: pd.DataFrame, prompts: list[str
         dump(out / f"acc_{safe}.dat", acc.xs(bench, level=1), 4)
     norm = tok.div(tok.mean(axis=1), axis=0).groupby(level=0).mean()
     dump(out / "tok_norm.dat", norm, 4)
+    if think is not None:
+        for bench in dict.fromkeys(think.index.get_level_values(1)):
+            safe = re.sub(r"[^A-Za-z0-9]+", "_", str(bench)).strip("_")
+            dump(out / f"think_{safe}.dat", think.xs(bench, level=1), 2)
+        dump(out / "think_norm.dat", think.div(think.mean(axis=1), axis=0).groupby(level=0).mean(), 4)
     print(f"\nwrote {len(written)} .dat files to {out}/ (x = {', '.join(f'{i}:{p}' for i, p in enumerate(prompts))})")
 
 
