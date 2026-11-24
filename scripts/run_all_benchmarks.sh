@@ -8,7 +8,7 @@
 #   bash scripts/run_all_benchmarks.sh --slot 4 --model model --limit 2
 #
 # --slot      which LLM service slot: 1-6       (default: 1)
-# --model     model yaml under src/configs/    (default: model)
+# --model     model yaml under configs/    (default: model)
 # --skip      comma-separated list of benchmarks to skip
 # --limit     only run first N problems per benchmark (for testing)
 # --timeout   seconds to wait for LLM service to be ready (default: 900)
@@ -61,7 +61,7 @@ PORT=$(_env_val "PORT_${SLOT}")
 [[ -n "$MODEL" ]] || { echo "ERROR: MODEL_${SLOT} not set in .env"; exit 1; }
 [[ -n "$PORT"  ]] || { echo "ERROR: PORT_${SLOT} not set in .env";  exit 1; }
 
-MODEL_YAML="$PROJECT_ROOT/src/configs/${MODEL_CFG}.yaml"
+MODEL_YAML="$PROJECT_ROOT/configs/${MODEL_CFG}.yaml"
 [[ -f "$MODEL_YAML" ]] || { echo "ERROR: model config not found: $MODEL_YAML"; exit 1; }
 
 LLM_SERVICE="llm_${SLOT}"
@@ -123,7 +123,7 @@ FAILED=()
 for i in "${!BENCHMARKS[@]}"; do
   BENCH="${BENCHMARKS[$i]}"
   NUM=$((i + 1))
-  BENCH_YAML="$PROJECT_ROOT/src/configs/benchmarks/${BENCH}.yaml"
+  BENCH_YAML="$PROJECT_ROOT/configs/benchmarks/${BENCH}.yaml"
 
   if _should_skip "$BENCH"; then
     echo "  -> Skipping $BENCH"
@@ -132,7 +132,7 @@ for i in "${!BENCHMARKS[@]}"; do
 
   [[ -f "$BENCH_YAML" ]] || { echo "WARNING: $BENCH_YAML not found, skipping"; FAILED+=("$BENCH"); continue; }
 
-  RUN_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/${BENCH}.yaml"
+  RUN_CMD="python run_eval.py --model ../configs/${MODEL_CFG}.yaml --benchmark ../configs/benchmarks/${BENCH}.yaml"
   [[ -n "$LIMIT" ]] && RUN_CMD="$RUN_CMD --limit $LIMIT"
 
   echo ""
@@ -148,8 +148,8 @@ for i in "${!BENCHMARKS[@]}"; do
       export MODEL="$MODEL" PORT="$PORT"
       cd "$PROJECT_ROOT"
       "$PROJECT_ROOT/.venv/bin/python" src/run_eval.py \
-        --model "src/configs/${MODEL_CFG}.yaml" \
-        --benchmark "src/configs/benchmarks/lcb_pro.yaml" \
+        --model "configs/${MODEL_CFG}.yaml" \
+        --benchmark "configs/benchmarks/lcb_pro.yaml" \
         ${LIMIT:+--limit "$LIMIT"}
     ); then
       PASSED+=("$BENCH")

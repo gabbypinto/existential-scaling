@@ -6,8 +6,8 @@
 #
 # --slot       which LLM service slot to use: 1,2,3,4  (default: 1)
 #              reads MODEL_N / PORT_N / GPU_IDS_N from .env
-# --benchmark  yaml name under src/configs/benchmarks/  (required)
-# --model      model yaml under src/configs/            (default: model)
+# --benchmark  yaml name under configs/benchmarks/  (required)
+# --model      model yaml under configs/            (default: model)
 # --limit      only run first N problems — smoke test
 # --follow     tail eval logs after launching
 # --timeout    seconds to wait for LLM service to be ready  (default: 600)
@@ -46,14 +46,14 @@ if [[ -z "$BENCH_CFG" ]]; then
   echo "Usage: $0 --slot <1-4> --benchmark <name> [--model model] [--limit N] [--follow]"
   echo ""
   echo "Available benchmarks:"
-  ls "$PROJECT_ROOT/src/configs/benchmarks/"*.yaml 2>/dev/null \
+  ls "$PROJECT_ROOT/configs/benchmarks/"*.yaml 2>/dev/null \
     | xargs -n1 basename | sed 's/\.yaml$//' | sed 's/^/  /'
   exit 1
 fi
 
 # ---------- validate configs ----------
-MODEL_YAML="$PROJECT_ROOT/src/configs/${MODEL_CFG}.yaml"
-BENCH_YAML="$PROJECT_ROOT/src/configs/benchmarks/${BENCH_CFG}.yaml"
+MODEL_YAML="$PROJECT_ROOT/configs/${MODEL_CFG}.yaml"
+BENCH_YAML="$PROJECT_ROOT/configs/benchmarks/${BENCH_CFG}.yaml"
 [[ -f "$MODEL_YAML" ]] || { echo "ERROR: model config not found: $MODEL_YAML"; exit 1; }
 [[ -f "$BENCH_YAML" ]] || { echo "ERROR: benchmark config not found: $BENCH_YAML"; exit 1; }
 
@@ -72,7 +72,7 @@ PORT=$(_env_val "PORT_${SLOT}")
 LLM_SERVICE="llm_${SLOT}"
 HEALTH_URL="http://localhost:${PORT}/v1/models"
 
-RUN_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/${BENCH_CFG}.yaml"
+RUN_CMD="python run_eval.py --model ../configs/${MODEL_CFG}.yaml --benchmark ../configs/benchmarks/${BENCH_CFG}.yaml"
 [[ -n "$LIMIT" ]] && RUN_CMD="$RUN_CMD --limit $LIMIT"
 
 CONTAINER_NAME="${USER:-eval}_eval_slot${SLOT}_${BENCH_CFG}"

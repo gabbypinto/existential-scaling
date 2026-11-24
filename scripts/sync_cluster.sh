@@ -29,6 +29,7 @@ fi
 
 rsync -avz --exclude='__pycache__' --exclude='*.pyc' \
   "$PROJECT_ROOT/src" \
+  "$PROJECT_ROOT/configs" \
   "$PROJECT_ROOT/scripts" \
   "$PROJECT_ROOT/docker-compose.yml" \
   "$PROJECT_ROOT/requirements.txt" \

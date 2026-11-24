@@ -41,7 +41,7 @@ SLOT=$(_jq "d.get('slot',1)")
 SKIP=$(_jq "d.get('skip','')")
 MODEL_COUNT=$(_jq "len(d['models'])")
 
-TMP_MODEL_YAML="$PROJECT_ROOT/src/configs/_model_run_tmp.yaml"
+TMP_MODEL_YAML="$PROJECT_ROOT/configs/_model_run_tmp.yaml"
 TMP_ENV="$PROJECT_ROOT/.env._run_tmp"
 
 cleanup() { rm -f "$TMP_MODEL_YAML" "$TMP_ENV"; }
@@ -88,7 +88,7 @@ print(d['models'][$IDX].get('hf_repo',''))
   for IDX in $(seq 0 $((MODEL_COUNT - 1))); do
     SLOT=$((IDX + 1))
     TMP_YAML_NAME="_model_tmp_par_${SLOT}"
-    TMP_YAML_PATH="$PROJECT_ROOT/src/configs/${TMP_YAML_NAME}.yaml"
+    TMP_YAML_PATH="$PROJECT_ROOT/configs/${TMP_YAML_NAME}.yaml"
     PAR_TMP_YAMLS[$IDX]="$TMP_YAML_NAME"
 
     TMP_VARS=$(mktemp)
@@ -102,7 +102,7 @@ print(d['models'][$IDX].get('hf_repo',''))
     rm -f "$SHARED_ENV"
     for IDX in $(seq 0 $((MODEL_COUNT - 1))); do
       SLOT=$((IDX + 1))
-      rm -f "$PROJECT_ROOT/src/configs/_model_tmp_par_${SLOT}.yaml"
+      rm -f "$PROJECT_ROOT/configs/_model_tmp_par_${SLOT}.yaml"
     done
   }
   trap par_cleanup EXIT

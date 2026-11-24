@@ -9,11 +9,11 @@
 #
 # --slots       comma-separated slots to run (default: auto-detect from .env)
 # --benchmarks  comma-separated benchmarks  (default: aime24,aime25,gpqa,global_mmlu_lite,social_iqa)
-# --prompts     path to prompt variants YAML (default: src/configs/prompts.yaml)
+# --prompts     path to prompt variants YAML (default: configs/prompts.yaml)
 # --limit       only run first N problems per benchmark
 # --timeout     seconds to wait for LLM service ready (default: 900)
 # --env-file    path to env file (default: .env)
-# --model       model config yaml stem under src/configs/ (default: model)
+# --model       model config yaml stem under configs/ (default: model)
 
 set -euo pipefail
 
@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 BENCHMARKS_RAW="aime24,aime25,gpqa,global_mmlu_lite,social_iqa"
-PROMPTS_FILE="$PROJECT_ROOT/src/configs/prompts.yaml"
+PROMPTS_FILE="$PROJECT_ROOT/configs/prompts.yaml"
 LIMIT=""
 NUM_ROUNDS=""
 TIMEOUT=900
@@ -106,7 +106,7 @@ for SLOT in "${SLOTS[@]}"; do
   DONE_FILE="/tmp/sweep_slot_${SLOT}_${PARENT_PID}.done"
 
   # Compute container-internal path to the prompts file (./src mounts to /app/src)
-  PROMPTS_CONTAINER=$(python3 -c "import os; print(os.path.relpath('$PROMPTS_FILE', '$PROJECT_ROOT/src'))" 2>/dev/null || echo "configs/prompts.yaml")
+  PROMPTS_CONTAINER=$(python3 -c "import os; print(os.path.relpath('$PROMPTS_FILE', '$PROJECT_ROOT/src'))" 2>/dev/null || echo "../configs/prompts.yaml")
 
   # Write the per-slot script (outer vars expand now; inner vars are escaped)
   cat > "$SLOT_SCRIPT" << SLOT_SCRIPT_EOF
@@ -152,7 +152,7 @@ for BENCH in "\${BENCHMARKS[@]}"; do
     CONTAINER_NAME="eval_${MODEL_SHORT}_\${BENCH}_\${PROMPT_KEY_SLUG}"
     docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
 
-    _EVAL_CMD="python run_eval.py --model configs/${MODEL_CFG}.yaml --benchmark configs/benchmarks/\${BENCH}.yaml --prompts-file $PROMPTS_CONTAINER --prompt-key \${PROMPT_KEY} --log-dir \${LOG_DIR}$([ -n "$LIMIT" ] && echo " --limit $LIMIT")$([ -n "$NUM_ROUNDS" ] && echo " --num-rounds $NUM_ROUNDS")"
+    _EVAL_CMD="python run_eval.py --model ../configs/${MODEL_CFG}.yaml --benchmark ../configs/benchmarks/\${BENCH}.yaml --prompts-file $PROMPTS_CONTAINER --prompt-key \${PROMPT_KEY} --log-dir \${LOG_DIR}$([ -n "$LIMIT" ] && echo " --limit $LIMIT")$([ -n "$NUM_ROUNDS" ] && echo " --num-rounds $NUM_ROUNDS")"
 
     if docker compose --env-file "$ENV_FILE" run \\
         --rm \\

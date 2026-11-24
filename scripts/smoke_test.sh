@@ -38,8 +38,8 @@ PORT=$(_env_val "PORT_${SLOT}")
 [[ -n "$MODEL" ]] || { echo "ERROR: MODEL_${SLOT} not set in .env"; exit 1; }
 [[ -n "$PORT"  ]] || { echo "ERROR: PORT_${SLOT} not set in .env";  exit 1; }
 
-MODEL_YAML="$PROJECT_ROOT/src/configs/model.yaml"
-[[ -f "$MODEL_YAML" ]] || { echo "ERROR: src/configs/model.yaml not found"; exit 1; }
+MODEL_YAML="$PROJECT_ROOT/configs/model.yaml"
+[[ -f "$MODEL_YAML" ]] || { echo "ERROR: configs/model.yaml not found"; exit 1; }
 
 LLM_SERVICE="llm_${SLOT}"
 HEALTH_URL="http://localhost:${PORT}/v1/models"
@@ -86,7 +86,7 @@ done
 echo ""
 
 # 3. Smoke test — single completion using model.yaml parameters
-echo "[3/3] Running smoke test (using src/configs/model.yaml params)..."
+echo "[3/3] Running smoke test (using configs/model.yaml params)..."
 RESPONSE=$(python3 - <<EOF
 import json, yaml, urllib.request
 

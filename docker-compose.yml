@@ -268,6 +268,7 @@ services:
       - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
     volumes:
       - ./src:/app/src
+      - ./configs:/app/configs
       - ./requirements.txt:/app/requirements.txt
       - ./logs:/app/src/logs
       - pip-cache:/root/.cache/pip

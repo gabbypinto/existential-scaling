@@ -1,6 +1,6 @@
 ## Setup
 
-1. Set `.env` (model slots, ports, GPU IDs - reference .env.example) and `src/configs/model.yaml` (inference params)
+1. Set `.env` (model slots, ports, GPU IDs - reference .env.example) and `configs/model.yaml` (inference params)
 2. Upload to compute cluster: (also possibly change to just leverage vscode ssh and use git instead of this janky upload script)
 
 ```bash

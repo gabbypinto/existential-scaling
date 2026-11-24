@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import yaml
 from benchmarks import REGISTRY
 
-CONFIGS_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "configs")
+CONFIGS_DIR = os.path.join(os.path.dirname(__file__), "..", "configs")
 
 
 def main():
@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--port", type=int, default=None, help="Local server port — skip inference if omitted")
     parser.add_argument("--model", default="", help="Model name for inference")
-    parser.add_argument("--model-config", default="model", help="Model config yaml stem under src/configs/ (inference params)")
+    parser.add_argument("--model-config", default="model", help="Model config yaml stem under configs/ (inference params)")
     args = parser.parse_args()
 
     bench_yaml = os.path.join(CONFIGS_DIR, "benchmarks", f"{args.benchmark}.yaml")

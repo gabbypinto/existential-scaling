@@ -12,8 +12,8 @@ prompt) pair that already has a summary.json is skipped unless --overwrite, so a
 interrupted sweep resumes by re-running the same command.
 
 Usage (from src/, normally via scripts/run_vllm_sweep.sh):
-    python run_sweep.py --model configs/model.yaml --benchmarks aime24,gpqa --concurrency 32
-    python run_sweep.py --model configs/model.yaml --benchmarks aime25 --prompts Baseline,Collapse --limit 2
+    python run_sweep.py --model ../configs/model.yaml --benchmarks aime24,gpqa --concurrency 32
+    python run_sweep.py --model ../configs/model.yaml --benchmarks aime25 --prompts Baseline,Collapse --limit 2
 """
 import argparse
 import json
@@ -30,7 +30,7 @@ from eval_base import (
     resolve_model_port, run_one, sampling_temperature,
 )
 
-CONFIG_DIR = Path(__file__).parent / "configs"
+CONFIG_DIR = Path(__file__).parent.parent / "configs"
 ROUND_WRITE_INTERVAL_S = 15  # how often in-progress round files are rewritten
 
 

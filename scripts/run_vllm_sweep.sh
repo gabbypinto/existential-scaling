@@ -11,9 +11,9 @@
 #   bash scripts/run_vllm_sweep.sh --benchmarks aime24,aime25,gpqa
 #   bash scripts/run_vllm_sweep.sh --benchmarks aime25 --prompts Baseline --limit 2 --num-rounds 1
 #
-# --benchmarks   comma-separated benchmarks under src/configs/benchmarks/   (required)
-# --prompts      comma-separated prompt keys       (default: every key in src/configs/prompts.yaml)
-# --model-cfg    model yaml stem under src/configs/ (default: model)
+# --benchmarks   comma-separated benchmarks under configs/benchmarks/   (required)
+# --prompts      comma-separated prompt keys       (default: every key in configs/prompts.yaml)
+# --model-cfg    model yaml stem under configs/ (default: model)
 # --concurrency  requests in flight                (default: VLLM_CONCURRENCY, else 32)
 # --limit        only the first N problems per benchmark
 # --num-rounds   override each benchmark's num_rounds
@@ -74,7 +74,7 @@ done
 
 [[ -n "$BENCHMARKS" ]] || { echo "ERROR: --benchmarks is required (e.g. --benchmarks aime24,gpqa)"; exit 1; }
 [[ -f "$ENV_FILE" ]] || { echo "ERROR: env file not found: $ENV_FILE"; exit 1; }
-[[ -f "$PROJECT_ROOT/src/configs/${MODEL_CFG}.yaml" ]] || { echo "ERROR: model config not found: src/configs/${MODEL_CFG}.yaml"; exit 1; }
+[[ -f "$PROJECT_ROOT/configs/${MODEL_CFG}.yaml" ]] || { echo "ERROR: model config not found: configs/${MODEL_CFG}.yaml"; exit 1; }
 
 # value of KEY in the env file, without inline comments or whitespace
 _env_val() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/[[:space:]]#.*$//' | tr -d '[:space:]' || true; }
@@ -198,7 +198,7 @@ while true; do
   ELAPSED=$((ELAPSED + 10))
 done
 
-SWEEP_CMD="python run_sweep.py --model configs/${MODEL_CFG}.yaml --benchmarks $BENCHMARKS --concurrency $CONCURRENCY"
+SWEEP_CMD="python run_sweep.py --model ../configs/${MODEL_CFG}.yaml --benchmarks $BENCHMARKS --concurrency $CONCURRENCY"
 [[ -n "$PROMPTS" ]]    && SWEEP_CMD+=" --prompts $PROMPTS"
 [[ -n "$LIMIT" ]]      && SWEEP_CMD+=" --limit $LIMIT"
 [[ -n "$NUM_ROUNDS" ]] && SWEEP_CMD+=" --num-rounds $NUM_ROUNDS"

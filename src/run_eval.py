@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 import sys
 import yaml
 from eval_base import load_config, run_eval
@@ -11,7 +12,7 @@ def main():
     parser.add_argument("--benchmark", required=True, help="Path to benchmark config YAML")
     parser.add_argument("--limit", type=int, default=None, help="Only run the first N problems (smoke test)")
     parser.add_argument("--prompt-key", default="", help="Key to look up in --prompts-file")
-    parser.add_argument("--prompts-file", default="src/configs/prompts.yaml", help="YAML file of system prompt variants")
+    parser.add_argument("--prompts-file", default=str(Path(__file__).resolve().parent.parent / "configs" / "prompts.yaml"), help="YAML file of system prompt variants")
     parser.add_argument("--log-dir", default=None, help="Override the auto-computed log directory")
     parser.add_argument("--num-rounds", type=int, default=None, help="Rounds per problem for pass@k (overrides benchmark YAML)")
     args = parser.parse_args()

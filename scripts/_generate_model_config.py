@@ -45,7 +45,7 @@ def main():
     )
 
     # --- Generate temp model yaml ---
-    base_yaml = project_root / "src" / "configs" / "model.yaml"
+    base_yaml = project_root / "configs" / "model.yaml"
     base: dict = {}
     for line in base_yaml.read_text().splitlines():
         line = line.strip()
